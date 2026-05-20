@@ -3,29 +3,55 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { deactivateSubscriber } from '@/lib/db';
 import styles from './page.module.scss';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 type Props = {
-  searchParams: Promise<{ email?: string; token?: string }>;
+  searchParams: Promise<{ token?: string }>;
 };
 
-function isValidToken(email: string, token: string): boolean {
-  const secret = process.env.UNSUBSCRIBE_SECRET ?? '';
-  const expected = createHmac('sha256', secret).update(email).digest('hex');
-  // Timing-safe comparison to prevent timing attacks.
+/**
+ * Decodes the opaque unsubscribe token (base64url "<email>:<hmac>")
+ * and verifies the HMAC. Returns the email if valid, null otherwise.
+ */
+function decodeToken(raw: string): string | null {
+  let decoded: string;
   try {
-    return timingSafeEqual(Buffer.from(expected), Buffer.from(token));
+    decoded = Buffer.from(raw, 'base64url').toString('utf-8');
   } catch {
-    return false;
+    return null;
   }
+
+  const colonIdx = decoded.indexOf(':');
+  if (colonIdx < 1) return null;
+
+  const email = decoded.slice(0, colonIdx);
+  const providedHmac = decoded.slice(colonIdx + 1);
+
+  const secret = process.env.UNSUBSCRIBE_SECRET ?? '';
+  const expectedHmac = createHmac('sha256', secret).update(email).digest('hex');
+
+  try {
+    // Timing-safe comparison to prevent timing attacks.
+    if (!timingSafeEqual(Buffer.from(expectedHmac), Buffer.from(providedHmac))) return null;
+  } catch {
+    return null;
+  }
+
+  return email;
 }
 
 export default async function UnsubscribePage({ searchParams }: Props) {
-  const { email: rawEmail, token } = await searchParams;
+  const { token } = await searchParams;
 
-  const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+  if (typeof token !== 'string') {
+    return (
+      <main className={styles.main}>
+        <p className={styles.error}>Lien invalide ou expiré.</p>
+      </main>
+    );
+  }
 
-  if (!EMAIL_RE.test(email) || typeof token !== 'string' || !isValidToken(email, token)) {
+  const email = decodeToken(token);
+
+  if (!email) {
     return (
       <main className={styles.main}>
         <p className={styles.error}>Lien invalide ou expiré.</p>

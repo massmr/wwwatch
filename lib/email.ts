@@ -1,46 +1,22 @@
 import { createHmac } from 'node:crypto';
 
+import { render } from '@react-email/render';
 import { Resend } from 'resend';
-import { marked } from 'marked';
 
-// Mirror of app/_styles/tokens.scss — CSS custom properties cannot be used in email HTML.
-const C_FG = '#111';         // --color-fg
-const C_ACCENT = '#0b62d6';  // --color-accent
-const C_BORDER = '#e5e5e5';  // --color-border
-const C_QUOTE = '#333';      // blockquote body text
-const C_HR = '#eee';         // hr and footer border
-const C_CODE_BG = '#f4f4f4'; // inline code background
-const C_FOOTER = '#888';     // footer text
+import { WeeklyBrief } from '../emails/weekly-brief';
 
-/** Generates a signed unsubscribe URL. Token = HMAC-SHA256(email, secret). */
+/**
+ * Builds an opaque unsubscribe token that encodes the email + HMAC.
+ * Format (base64url): "<email>:<hmac-sha256>"
+ * The email is NOT in the URL query string — only the opaque token is.
+ */
 function buildUnsubscribeUrl(email: string): string {
   const siteUrl = process.env.SITE_URL ?? 'https://wwwatch.vercel.app';
-  const secret = process.env.UNSUBSCRIBE_SECRET ?? '';
-  const token = createHmac('sha256', secret).update(email).digest('hex');
-  return `${siteUrl}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
-}
-
-/** Renders the email HTML. Accepts pre-parsed body to avoid re-parsing per recipient. */
-function renderHtml(body: string, subject: string, recipientEmail: string): string {
-  const unsubscribeUrl = buildUnsubscribeUrl(recipientEmail);
-  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
-<title>${subject}</title>
-<style>
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-       max-width:600px;margin:0 auto;padding:24px;color:${C_FG};line-height:1.55}
-  h2{margin-top:32px;font-size:18px;letter-spacing:-0.01em}
-  a{color:${C_ACCENT}}
-  blockquote{border-left:3px solid ${C_BORDER};margin:8px 0;
-             padding:4px 0 4px 12px;color:${C_QUOTE};font-size:14px}
-  hr{border:none;border-top:1px solid ${C_HR};margin:28px 0}
-  code{background:${C_CODE_BG};padding:1px 5px;border-radius:3px;font-size:13px}
-  .footer{margin-top:40px;padding-top:20px;border-top:1px solid ${C_HR};
-          color:${C_FOOTER};font-size:12px}
-</style></head><body>
-${body}
-<div class="footer">wwwatch — veille IA hebdo pour product engineers.<br>
-<a href="${unsubscribeUrl}" style="color:${C_FOOTER}">Se désinscrire</a></div>
-</body></html>`;
+  const secret = process.env.UNSUBSCRIBE_SECRET;
+  if (!secret) throw new Error('UNSUBSCRIBE_SECRET manquant');
+  const hmac = createHmac('sha256', secret).update(email).digest('hex');
+  const token = Buffer.from(`${email}:${hmac}`).toString('base64url');
+  return `${siteUrl}/unsubscribe?token=${token}`;
 }
 
 export type SendResult = { sent: number; failed: number };
@@ -58,15 +34,17 @@ export async function sendBriefToList(
   const replyTo = process.env.EMAIL_REPLY_TO;
 
   const resend = new Resend(apiKey);
-  // Parse markdown once — body HTML is identical for all recipients.
-  const body = await marked.parse(markdown, { gfm: true });
-
   let sent = 0;
   let failed = 0;
 
   for (const to of emails) {
     try {
-      const html = renderHtml(body, subject, to);
+      // render() called per recipient to personalise the unsubscribe link.
+      // WeeklyBrief() is called as a function (not JSX) because lib/email.ts
+      // is a .ts file. Static email components with no hooks — safe pattern.
+      const html = await render(
+        WeeklyBrief({ markdown, unsubscribeUrl: buildUnsubscribeUrl(to), previewText: subject })
+      );
       const { error } = await resend.emails.send({
         from,
         to,

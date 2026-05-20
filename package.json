@@ -8,24 +8,29 @@
     "start": "next start",
     "brief": "tsx scripts/brief.ts",
     "brief:local": "tsx --env-file=.env.local scripts/brief.ts",
-    "brief:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/brief.ts"
+    "brief:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/brief.ts",
+    "email:dev": "react-email dev --dir emails"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@neondatabase/serverless": "^0.10.0",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.0.8",
     "next": "^16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "@neondatabase/serverless": "^0.10.0",
-    "@anthropic-ai/sdk": "^0.30.0",
-    "resend": "^4.0.0",
-    "marked": "^14.1.0"
+    "resend": "^4.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.5.3",
     "@types/node": "^20.14.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "react-email": "^6.1.5",
     "sass": "^1.77.0",
-    "tsx": "^4.16.0"
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.3"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }
