@@ -411,8 +411,10 @@ neon/                 ← schema SQL, migrations
 
 - **Modèle pinné** : `claude-sonnet-4-6`. Validé après test de coût (Opus à $12/run, Sonnet ~$0.60/run).
   Ne pas changer sans validation. Les évals de prompt ne sont pas portables entre modèles.
-- **Tool web_search** : version `web_search_20260209`. La version est dans
-  le contrat. Ne pas downgrade.
+- **Tool web_search** : version `web_search_20250305`. Downgrade validé depuis
+  `web_search_20260209` : le sandbox de dynamic filtering causait des timeouts
+  systématiques ("Detection timed out after 25s"). Repasser sur `20260209` si
+  Anthropic stabilise le service.
 - **Logguer les usages** : tokens in/out, durée, succès/échec. Permet de
   suivre les coûts.
 - **Le prompt est versionné dans le code** (`lib/prompt.ts`), pas dans

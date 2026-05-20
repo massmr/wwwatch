@@ -417,8 +417,8 @@ export async function generateBriefMarkdown(): Promise<string> {
 **Points critiques à NE PAS modifier** :
 - `model: 'claude-sonnet-4-6'` (validé après test : Opus à $12/run à cause
   des 60 recherches × tokens accumulés ; Sonnet ~$0.60/run, qualité suffisante)
-- `type: 'web_search_20260209'` (version 2026 avec dynamic filtering qui
-  économise des tokens)
+- `type: 'web_search_20250305'` (downgrade validé depuis `20260209` : sandbox
+  de dynamic filtering causait "Detection timed out after 25s" systématique)
 - `max_uses: 5` (production) / `1` (dry-run) — web_search_20260209 fait ~3
   sous-recherches par use, donc 5 uses ≈ 15 recherches réelles ; max_uses: 20
   provoquait 60 recherches et 743K tokens d'entrée)

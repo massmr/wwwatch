@@ -31,7 +31,10 @@ export async function generateBriefMarkdown(maxUses = 5): Promise<string> {
         tools: [
           {
             // SDK not always up to date on server tool types — cast required.
-            type: 'web_search_20260209',
+            // Downgraded from web_search_20260209 : le sandbox de dynamic
+            // filtering causait des "Detection timed out after 25s" systématiques.
+            // web_search_20250305 est sans sandbox, plus fiable (~24% tokens en plus).
+            type: 'web_search_20250305',
             name: 'web_search',
             max_uses: maxUses,
           } as never,
