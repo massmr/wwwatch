@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "brief": "tsx --env-file=.env.local scripts/brief.ts",
+    "brief": "tsx scripts/brief.ts",
+    "brief:local": "tsx --env-file=.env.local scripts/brief.ts",
     "brief:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/brief.ts"
   },
   "dependencies": {

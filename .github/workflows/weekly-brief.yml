@@ -1,0 +1,27 @@
+name: Weekly brief
+
+on:
+  schedule:
+    # Lundi 06:00 UTC = 07:00 Paris hiver / 08:00 Paris été
+    - cron: "0 6 * * 1"
+  workflow_dispatch: # déclenchement manuel pour tester
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run brief
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_REPLY_TO: ${{ secrets.EMAIL_REPLY_TO }}
+          DRY_RUN_EMAIL: ${{ secrets.DRY_RUN_EMAIL }}
