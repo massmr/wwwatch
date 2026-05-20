@@ -9,9 +9,10 @@ async function main(): Promise<void> {
   const now = new Date();
   const isDryRun = process.env.DRY_RUN === '1';
 
-  // Dry run uses 1 search: enough to validate the full pipeline (generate →
-  // save → send) without the cost of a real brief (~$0.10 vs ~$0.60).
-  const markdown = await generateBriefMarkdown(isDryRun ? 1 : 5);
+  // Dry run uses 3 searches: enough margin to survive a single detection timeout
+  // while keeping cost low (~$0.20 vs ~$0.60 for prod). 1 was too tight — if the
+  // only allowed search timed out, the model reported the service as "down".
+  const markdown = await generateBriefMarkdown(isDryRun ? 3 : 5);
 
   // Save to <cwd>/out/YYYY-MM-DD.md — explicit cwd avoids issues in CI.
   const outDir = join(process.cwd(), 'out');
