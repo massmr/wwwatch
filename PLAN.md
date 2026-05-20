@@ -1,0 +1,924 @@
+# wwwatch — Plan de build MVP
+
+> Newsletter hebdo de veille IA pour product engineers. Brief généré chaque
+> lundi par Claude API + web_search, envoyé via Resend aux abonnés stockés
+> dans Supabase. Landing Next.js pour l'inscription. Cron via GitHub Actions.
+
+**Objectif** : 1ʳᵉ newsletter envoyée à moi-même (dry run) en fin de journée,
+landing publique déployée le même soir.
+
+> **À lire en parallèle** : `CONVENTIONS.md` définit les règles de
+> développement (TypeScript, Next.js 16, SCSS, erreurs, sécurité…). Tout
+> conflit entre ce plan et CONVENTIONS.md se résout en faveur de CONVENTIONS.md.
+
+---
+
+## Stack figée (ne pas re-débattre)
+
+- **App** : Next.js **16** (App Router, React 19.2, Turbopack stable,
+  React Compiler stable) + TypeScript strict — une seule app, pas de monorepo
+- **Styles** : **SCSS Modules** + CSS custom properties pour les tokens
+  (pas de Tailwind)
+- **DB** : Supabase Postgres (free tier)
+- **Email** : Resend (free tier : 3 000 mails/mois, 100/jour)
+- **LLM** : Anthropic API — modèle `claude-opus-4-7`, tool `web_search_20260209`
+- **Cron** : GitHub Actions (script Node lancé en CI, **pas** une API route
+  Next.js — sinon timeout Vercel free)
+- **Hébergement** : Vercel (web) + Supabase (DB) + Resend (mail)
+
+**Trois pièges Next.js 16 à connaître** (détaillés dans CONVENTIONS.md) :
+1. `params` et `searchParams` sont **async** → `await` obligatoire
+2. `middleware.ts` n'existe plus → `proxy.ts` (pas besoin pour ce MVP)
+3. Caching **opt-in** uniquement via `'use cache'` (tout est dynamique par
+   défaut)
+
+---
+
+## Arbre cible
+
+```
+wwwatch/
+├── README.md
+├── PLAN.md                          ← ce fichier
+├── CONVENTIONS.md                   ← règles de dev
+├── package.json
+├── next.config.ts
+├── tsconfig.json
+├── .gitignore
+├── .env.example
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx                    ← landing (server component)
+│   ├── page.module.scss
+│   ├── SubscribeForm.tsx           ← client component minimal
+│   ├── SubscribeForm.module.scss
+│   ├── actions.ts                  ← Server Actions (subscribe)
+│   └── _styles/
+│       ├── globals.scss            ← reset, base typo
+│       ├── tokens.scss             ← CSS custom properties
+│       └── mixins.scss             ← media queries, etc.
+├── lib/
+│   ├── supabase.ts                 ← client serveur (service_role)
+│   ├── prompt.ts                   ← LE prompt, cœur du produit
+│   ├── research.ts                 ← appel Claude + web_search
+│   └── email.ts                    ← markdown → HTML + Resend
+├── scripts/
+│   └── brief.ts                    ← entrypoint exécuté par GH Actions
+├── supabase/
+│   └── schema.sql
+└── .github/workflows/
+    └── weekly-brief.yml
+```
+
+`lib/` est partagé entre les Server Components / Actions et le script
+`scripts/brief.ts`. Une seule install de deps. Une seule version de chaque SDK.
+
+**Note** : pas de `/api/subscribe` route. On utilise une **Server Action**
+dans `app/actions.ts` (pattern Next 16 idiomatique). Moins de code, moins
+de surface.
+
+---
+
+## Phase 1 — Setup Next.js 16 (15 min)
+
+**Goal** : `npm run dev` lance une page blanche stylée SCSS sur localhost.
+
+**Files** :
+
+### `package.json`
+```json
+{
+  "name": "wwwatch",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "brief": "tsx scripts/brief.ts",
+    "brief:dry": "DRY_RUN=1 tsx scripts/brief.ts"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "@anthropic-ai/sdk": "^0.30.0",
+    "resend": "^4.0.0",
+    "marked": "^14.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "@types/node": "^20.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "sass": "^1.77.0",
+    "tsx": "^4.16.0"
+  },
+  "engines": { "node": ">=20" }
+}
+```
+
+### `next.config.ts`
+```ts
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  reactStrictMode: true,
+  // Sass est supporté nativement par Next.js, aucune config requise.
+};
+
+export default nextConfig;
+```
+
+### `tsconfig.json`
+Standard Next 16 avec `"paths": { "@/*": ["./*"] }`. Claude Code peut le
+générer avec `next dev` (créé automatiquement).
+
+### `app/_styles/tokens.scss`
+```scss
+:root {
+  --color-bg: #fafaf9;
+  --color-fg: #111;
+  --color-muted: #6b7280;
+  --color-accent: #0b62d6;
+  --color-accent-success: #047857;
+  --color-error: #dc2626;
+  --color-border: #e5e5e5;
+  --color-card-bg: #fff;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+}
+```
+
+### `app/_styles/mixins.scss`
+```scss
+@mixin tablet { @media (min-width: 640px) { @content; } }
+@mixin desktop { @media (min-width: 1024px) { @content; } }
+```
+
+### `app/_styles/globals.scss`
+```scss
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p { margin: 0; }
+
+a { color: inherit; }
+
+button { font-family: inherit; cursor: pointer; }
+```
+
+### `app/layout.tsx`
+```tsx
+import type { Metadata } from 'next';
+import './_styles/tokens.scss';
+import './_styles/globals.scss';
+
+export const metadata: Metadata = {
+  title: 'wwwatch — La veille IA pour product engineers',
+  description:
+    "Une newsletter hebdo, triée par un product engineer pour les product engineers. Modèles, outils, papers : ce qui change vraiment ta stack.",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="fr">
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+### `app/page.tsx`
+Placeholder minimal pour valider P1. Sera enrichi en P4.
+```tsx
+import styles from './page.module.scss';
+
+export default function Page() {
+  return <main className={styles.main}>wwwatch</main>;
+}
+```
+
+### `app/page.module.scss`
+Vide pour l'instant : `.main { padding: var(--space-8); }`.
+
+### `.gitignore`
+```
+node_modules
+.next
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.log
+out/
+.vercel
+.turbo
+```
+
+### `.env.example`
+Voir Annexe B.
+
+**Acceptance** : `npm install && npm run dev` ouvre http://localhost:3000
+sans erreur. La page affiche "wwwatch", la couleur de fond est `#fafaf9`
+(token appliqué correctement).
+
+---
+
+## Phase 2 — DB Supabase (5 min)
+
+**Goal** : tables `subscribers` et `briefs` créées, accessibles via service_role.
+
+**Setup** :
+1. Créer un projet sur supabase.com (région EU-West de préférence)
+2. Copier URL + anon key + service_role key dans `.env.local`
+3. Coller `supabase/schema.sql` dans SQL Editor → Run
+
+### `supabase/schema.sql`
+```sql
+create table if not exists public.subscribers (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  status text not null default 'active'
+    check (status in ('active', 'unsubscribed', 'bounced')),
+  source text,
+  created_at timestamptz not null default now(),
+  unsubscribed_at timestamptz
+);
+
+create index if not exists subscribers_status_idx
+  on public.subscribers(status);
+
+create table if not exists public.briefs (
+  id uuid primary key default gen_random_uuid(),
+  sent_at timestamptz not null default now(),
+  subject text not null,
+  markdown text not null,
+  recipient_count int not null default 0
+);
+
+alter table public.subscribers enable row level security;
+alter table public.briefs enable row level security;
+-- Pas de policy publique : tout passe par service_role côté serveur.
+```
+
+**Acceptance** : tables visibles dans Supabase Table Editor.
+
+---
+
+## Phase 3 — Brief generator (1h, le plus important)
+
+**Goal** : `npm run brief:dry` génère un brief markdown sauvegardé localement
+dans `out/YYYY-MM-DD.md` et envoyé à `DRY_RUN_EMAIL`.
+
+### `lib/supabase.ts`
+```ts
+import { createClient } from '@supabase/supabase-js';
+
+export function getServerSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url) throw new Error('NEXT_PUBLIC_SUPABASE_URL manquant');
+  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY manquant');
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+export async function getActiveSubscribers(): Promise<string[]> {
+  const supabase = getServerSupabase();
+  const { data, error } = await supabase
+    .from('subscribers')
+    .select('email')
+    .eq('status', 'active');
+  if (error) throw error;
+  return (data ?? []).map((r) => r.email as string);
+}
+
+export async function logBrief(opts: {
+  subject: string;
+  markdown: string;
+  recipientCount: number;
+}): Promise<void> {
+  const supabase = getServerSupabase();
+  const { error } = await supabase.from('briefs').insert({
+    subject: opts.subject,
+    markdown: opts.markdown,
+    recipient_count: opts.recipientCount,
+  });
+  if (error) console.error('[db] Impossible de logger le brief :', error);
+}
+```
+
+### `lib/prompt.ts`
+**LE prompt central**. Voir Annexe A pour le contenu intégral. Exporte
+`buildPrompt(now: Date): string`. Ne pas le réinventer — il représente
+les itérations du prompt engineering.
+
+### `lib/research.ts`
+Appel Anthropic. **Code de référence** (à respecter, surtout les versions) :
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+import { buildPrompt } from './prompt';
+
+const MODEL = 'claude-opus-4-7';
+
+export async function generateBriefMarkdown(): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY manquant');
+
+  const client = new Anthropic({ apiKey });
+  const prompt = buildPrompt(new Date());
+
+  console.log(`[research] Appel ${MODEL} avec web_search...`);
+  const start = Date.now();
+
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 8192,
+    tools: [
+      {
+        // SDK pas toujours à jour sur les types de server tools.
+        type: 'web_search_20260209',
+        name: 'web_search',
+        max_uses: 20,
+      } as never,
+    ],
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  console.log(`[research] OK en ${((Date.now() - start) / 1000).toFixed(1)}s`);
+
+  type TextBlock = { type: 'text'; text: string };
+  const text = response.content
+    .filter((b): b is TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n\n')
+    .trim();
+
+  if (!text) throw new Error('Claude n\'a rien retourné');
+
+  const usage = response.usage;
+  console.log(
+    `[research] tokens in=${usage.input_tokens} out=${usage.output_tokens}`
+  );
+  return text;
+}
+```
+
+**Points critiques à NE PAS modifier** :
+- `model: 'claude-opus-4-7'` (Opus, pas Sonnet : qualité de synthèse,
+  c'est 1× par semaine)
+- `type: 'web_search_20260209'` (version 2026 avec dynamic filtering qui
+  économise des tokens)
+- `max_uses: 20` (couvre les 12-18 recherches du prompt + marge)
+- `max_tokens: 8192` (suffisant pour ~900 mots de brief + tool calls)
+- Le cast `as never` sur le tool : le SDK n'a pas toujours le type le
+  plus récent. À enlever quand le SDK rattrapera.
+
+### `lib/email.ts`
+```ts
+import { Resend } from 'resend';
+import { marked } from 'marked';
+
+function renderHtml(markdown: string, subject: string): string {
+  const body = marked.parse(markdown, { gfm: true }) as string;
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<title>${subject}</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       max-width:600px;margin:0 auto;padding:24px;color:#111;line-height:1.55}
+  h2{margin-top:32px;font-size:18px;letter-spacing:-0.01em}
+  a{color:#0b62d6}
+  blockquote{border-left:3px solid #e5e5e5;margin:8px 0;
+             padding:4px 0 4px 12px;color:#333;font-size:14px}
+  hr{border:none;border-top:1px solid #eee;margin:28px 0}
+  code{background:#f4f4f4;padding:1px 5px;border-radius:3px;font-size:13px}
+  .footer{margin-top:40px;padding-top:20px;border-top:1px solid #eee;
+          color:#888;font-size:12px}
+</style></head><body>
+${body}
+<div class="footer">wwwatch — veille IA hebdo pour product engineers.<br>
+Pour te désinscrire, réponds "stop".</div>
+</body></html>`;
+}
+
+export type SendResult = { sent: number; failed: number };
+
+export async function sendBriefToList(
+  emails: string[],
+  markdown: string,
+  subject: string
+): Promise<SendResult> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY manquant');
+
+  const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+  const replyTo = process.env.EMAIL_REPLY_TO;
+
+  const resend = new Resend(apiKey);
+  const html = renderHtml(markdown, subject);
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const to of emails) {
+    try {
+      const { error } = await resend.emails.send({
+        from, to, subject, html, replyTo,
+      });
+      if (error) {
+        console.error(`[email] FAIL ${to}:`, error);
+        failed++;
+      } else {
+        sent++;
+      }
+    } catch (err) {
+      console.error(`[email] FAIL ${to}:`, err);
+      failed++;
+    }
+    // Resend rate-limit à 10 req/s en free tier, on lisse à 8 par sécurité.
+    await new Promise((r) => setTimeout(r, 125));
+  }
+
+  return { sent, failed };
+}
+```
+
+### `scripts/brief.ts`
+Orchestration :
+1. Générer le brief markdown via `generateBriefMarkdown()`
+2. Sauvegarder dans `out/YYYY-MM-DD.md` (utile pour debug + archive)
+3. Si `DRY_RUN=1` → envoyer uniquement à `DRY_RUN_EMAIL`
+   Sinon → récupérer `getActiveSubscribers()` et envoyer à tous
+4. Logger en DB via `logBrief()` (sauf en dry run)
+
+Sujet : `wwwatch — semaine du DD mois` (Intl `fr-FR`, format `day: "2-digit", month: "long"`).
+
+Le code complet de `scripts/brief.ts` est laissé à Claude Code en suivant
+les conventions. Critères :
+- Charger les vars d'env (Node 20+ supporte `--env-file=.env.local` nativement,
+  alternative : `import 'dotenv/config'` si tu préfères dotenv)
+- `mkdirSync('out', { recursive: true })` avant écriture
+- Filename : `out/${new Date().toISOString().slice(0, 10)}.md`
+- Process exit avec code 1 si erreur fatale
+
+**Acceptance** :
+- `npm run brief:dry` génère un `out/*.md` contenant des liens cliquables
+  réels (vérifier 3-5 au hasard, doivent répondre 200)
+- L'email arrive sur `DRY_RUN_EMAIL` en < 5 min
+- Coût ~0.50-1€ par run (visible dans la console Anthropic)
+
+---
+
+## Phase 4 — Landing + Server Action (45 min)
+
+**Goal** : landing publique avec form qui crée une ligne dans `subscribers`
+via Server Action (pattern Next 16).
+
+### `app/actions.ts`
+```ts
+'use server';
+
+import { getServerSupabase } from '@/lib/supabase';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export type SubscribeState =
+  | { status: 'idle' }
+  | { status: 'ok'; message: string }
+  | { status: 'error'; message: string };
+
+export async function subscribe(
+  _prev: SubscribeState,
+  formData: FormData
+): Promise<SubscribeState> {
+  const raw = formData.get('email');
+  if (typeof raw !== 'string' || !EMAIL_RE.test(raw)) {
+    return { status: 'error', message: 'Email invalide.' };
+  }
+
+  const email = raw.trim().toLowerCase();
+
+  try {
+    const supabase = getServerSupabase();
+    const { error } = await supabase
+      .from('subscribers')
+      .upsert(
+        { email, status: 'active', source: 'landing' },
+        { onConflict: 'email' }
+      );
+
+    if (error) {
+      console.error('[subscribe]', error);
+      return { status: 'error', message: 'Erreur serveur, réessaie plus tard.' };
+    }
+
+    return {
+      status: 'ok',
+      message: 'Inscrit. Le prochain brief arrive lundi matin.',
+    };
+  } catch (err) {
+    console.error('[subscribe]', err);
+    return { status: 'error', message: 'Erreur serveur, réessaie plus tard.' };
+  }
+}
+```
+
+### `app/SubscribeForm.tsx`
+```tsx
+'use client';
+
+import { useActionState } from 'react';
+import { subscribe, type SubscribeState } from './actions';
+import styles from './SubscribeForm.module.scss';
+
+const initial: SubscribeState = { status: 'idle' };
+
+export function SubscribeForm() {
+  const [state, formAction, pending] = useActionState(subscribe, initial);
+
+  return (
+    <form action={formAction} className={styles.form}>
+      <div className={styles.row}>
+        <input
+          type="email"
+          name="email"
+          required
+          placeholder="ton@email.com"
+          className={styles.input}
+          disabled={pending}
+        />
+        <button type="submit" disabled={pending} className={styles.button}>
+          {pending ? '…' : "S'inscrire"}
+        </button>
+      </div>
+      {state.status === 'error' && (
+        <p className={styles.error}>{state.message}</p>
+      )}
+      {state.status === 'ok' && (
+        <p className={styles.success}>{state.message}</p>
+      )}
+    </form>
+  );
+}
+```
+
+### `app/page.tsx` (server component)
+```tsx
+import styles from './page.module.scss';
+import { SubscribeForm } from './SubscribeForm';
+
+export default function Page() {
+  return (
+    <main className={styles.main}>
+      <div className={styles.container}>
+        <div className={styles.badge}>
+          <span className={styles.dot} />
+          <span>NEWSLETTER HEBDO · GRATUITE</span>
+        </div>
+
+        <h1 className={styles.title}>
+          La veille IA pour <em>product engineers</em>.
+        </h1>
+
+        <p className={styles.subtitle}>
+          Un brief par semaine, le lundi matin. Trié par un product engineer
+          pour les product engineers. Pas de hype, pas de business porn —
+          juste ce qui change ta stack cette semaine.
+        </p>
+
+        <SubscribeForm />
+
+        <div className={styles.cards}>
+          <div className={styles.card}>
+            <div className={styles.cardTitle}>🧠 Modèles</div>
+            Releases Anthropic, OpenAI, Google, open source.
+          </div>
+          <div className={styles.card}>
+            <div className={styles.cardTitle}>🛠️ Outils</div>
+            Frameworks, APIs, repos GitHub qui décollent.
+          </div>
+          <div className={styles.card}>
+            <div className={styles.cardTitle}>📑 Papers</div>
+            Le top de Hugging Face Daily + arXiv.
+          </div>
+        </div>
+
+        <footer className={styles.footer}>
+          Aucune pub. Désinscription en un clic.
+        </footer>
+      </div>
+    </main>
+  );
+}
+```
+
+### `app/page.module.scss` et `app/SubscribeForm.module.scss`
+Claude Code peut générer ces SCSS modules en suivant CONVENTIONS.md
+(section "SCSS & styles"). Contraintes :
+- **Mobile-first**. Le layout doit être propre à 360px de large minimum.
+- **Tokens uniquement** : pas de `#000`, `12px` ou `rgb()` direct. Toujours
+  `var(--*)`.
+- **Pas de nesting > 2 niveaux**.
+- Imports Sass via `@use`, pas `@import`.
+- Pour les media queries : `@use '../_styles/mixins' as mq;` puis
+  `@include mq.tablet { ... }`.
+
+Direction visuelle :
+- Layout centré, max-width ~640px, padding généreux.
+- H1 : taille `--text-4xl` mobile, `--text-5xl` desktop. Tracking serré
+  (`letter-spacing: -0.02em`).
+- Pastille "NEWSLETTER HEBDO" : monospace, gris, petite, avec point vert
+  (`--color-accent-success`).
+- Form : input à gauche, bouton noir à droite, stack vertical sur mobile.
+- Cards : grille 1 colonne mobile, 3 colonnes desktop. Fond blanc, border
+  léger, padding moyen.
+- Footer : très discret, monospace, gris clair.
+
+**Acceptance** :
+- Form soumis → ligne dans `public.subscribers`
+- Re-soumettre le même email → pas d'erreur (upsert)
+- Email invalide → message rouge inline
+- Mobile (360px viewport) : pas de scroll horizontal, tout lisible
+- Pas de console error / warning en dev
+
+---
+
+## Phase 5 — CI cron (15 min)
+
+**Goal** : workflow GitHub Actions qui exécute `npm run brief` chaque lundi.
+
+### `.github/workflows/weekly-brief.yml`
+```yaml
+name: Weekly brief
+
+on:
+  schedule:
+    # Lundi 06:00 UTC = 07:00 Paris hiver / 08:00 Paris été
+    - cron: "0 6 * * 1"
+  workflow_dispatch: # déclenchement manuel pour tester
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run brief
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_REPLY_TO: ${{ secrets.EMAIL_REPLY_TO }}
+```
+
+**Setup** :
+1. GitHub repo → Settings → Secrets and variables → Actions
+2. Ajouter chaque secret listé ci-dessus
+3. Onglet Actions → "Weekly brief" → "Run workflow" pour tester
+
+**Acceptance** : run manuel termine en vert, email reçu par les abonnés.
+
+---
+
+## Phase 6 — Déploiement (30 min)
+
+**Web** :
+1. `vercel.com` → Import GitHub repo
+2. Vercel détecte Next.js 16 automatiquement, build avec Turbopack
+3. Variables d'env à ajouter dans Vercel :
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+4. Deploy → URL publique fonctionnelle
+
+**Email production** :
+1. Resend dashboard → Domains → Add `wwwatch.fr` (ou ton domaine)
+2. Configurer DNS : SPF + DKIM + DMARC (3 records)
+3. Vérifier que le domaine passe en "Verified"
+4. Mettre à jour `EMAIL_FROM` partout : `brief@wwwatch.fr`
+
+Sans domaine vérifié : tu peux **uniquement** t'envoyer à toi-même via
+`onboarding@resend.dev`. Bloquant pour la diffusion réelle.
+
+**Acceptance finale** :
+- Inscription publique fonctionne sur l'URL Vercel
+- Trigger manuel du workflow envoie le brief aux abonnés
+- Email arrive dans Gmail Primary (pas Promotions/Spam)
+- Lighthouse mobile > 90 sur la landing
+
+---
+
+## Annexe A — Le prompt complet (`lib/prompt.ts`)
+
+```ts
+export function buildPrompt(now: Date): string {
+  const iso = now.toISOString().slice(0, 10);
+  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString().slice(0, 10);
+
+  return `# RÔLE
+Tu rédiges la veille IA hebdomadaire d'un **product engineer** qui code
+avec des LLMs. Ton lecteur veut savoir ce qui change concrètement sa stack
+cette semaine. Pas de hype, pas de business porn, pas de réglementation
+sauf impact technique direct.
+
+# PÉRIODE
+Du ${weekStart} au ${iso} (7 derniers jours).
+
+# STRATÉGIE DE RECHERCHE
+Effectue **12 à 18 recherches web** ciblées, réparties ainsi :
+
+## Annonces officielles (4-5 recherches)
+- "Anthropic OR OpenAI OR Google DeepMind release ${weekStart}"
+- "Meta AI OR Mistral OR xAI announcement past week"
+- "new AI model launched this week ${iso.slice(0, 7)}"
+- "Hugging Face new model trending"
+
+## Recherche & papers (2-3 recherches)
+- "huggingface daily papers ${iso.slice(0, 7)}"
+- "arxiv cs.AI trending paper this week"
+
+## Communauté (4-5 recherches)
+- "Hacker News top AI ${weekStart}"
+- "Hacker News Show HN AI tool this week"
+- "reddit LocalLLaMA new model"
+- "GitHub trending python AI repository ${iso.slice(0, 7)}"
+
+## Triangulation (2-3 recherches)
+- "TLDR AI newsletter ${weekStart}"
+- "Import AI newsletter Jack Clark recent"
+- "AI funding round series A B ${weekStart}"
+
+Reformule les requêtes qui ne ramènent rien. **Si tu ne trouves rien de
+pertinent dans une catégorie, dis-le explicitement plutôt que de combler
+avec du bruit.**
+
+# CRITÈRES DE FILTRAGE
+Garde uniquement un item s'il répond à AU MOINS UN critère :
+- Nouveau modèle ou MAJ majeure (capacités, prix, contexte)
+- Nouvel outil / framework / API utilisable maintenant
+- Paper avec impact pratique (benchmark battu, technique reproductible)
+- Levée > 20M$ ou acquisition qui change le marché
+- Incident technique structurant (faille, jailbreak public, etc.)
+
+**Écarte** : avis personnels non sourcés, hype sans produit, redites de
+news déjà couvertes ailleurs depuis > 7 jours.
+
+# GARDE-FOUS ANTI-HALLUCINATION (CRITIQUE)
+- Chaque item DOIT avoir une URL réellement visitée via web_search. Pas
+  d'URL vérifiée → n'inclus PAS l'item.
+- Date d'annonce antérieure à ${weekStart} → écarte-la.
+- Pour chaque chiffre cité (benchmark, prix, levée) : la source doit
+  l'indiquer explicitement, sinon omets le chiffre.
+- Marque les rumeurs "🔁 Rumeur" et précise la source.
+- Sources contradictoires → mentionne le désaccord.
+
+# FORMAT DE SORTIE (Markdown, ~700-900 mots max)
+
+Démarre directement par le contenu, pas de préambule.
+
+---
+
+## ⚡ Les 3 signaux de la semaine
+Top 3 items qui comptent vraiment pour un product engineer.
+Format : **[Nom]** — *pourquoi ça change quelque chose pour toi*. [lien](url)
+
+---
+
+## 🧠 Modèles & APIs
+3 à 6 items max. Pour chaque :
+
+**[Nom]** — [lien](url)
+> Une phrase neutre sur ce que c'est.
+> **Pourquoi ça compte** : 1 phrase orientée stack/usage.
+> 💲 [Pricing si connu]
+
+---
+
+## 🛠️ Outils & frameworks
+3 à 5 items. Repos, librairies, dev tools. Même structure +
+> ⚡ **À tester** : oui/non + raison concrète.
+
+---
+
+## 📑 Papers à connaître
+2 à 4 papers max, choisis par utilité pratique > nouveauté académique.
+
+**[Titre]** — [arxiv/source](url)
+> 1 phrase sur la contribution.
+> **Application** : ce que ça change si on l'intègre dans un produit.
+
+---
+
+## 🔭 À surveiller
+Annonces partielles, dates de release connues, betas privées repérées.
+Max 3 items, une ligne chacun.
+
+---
+
+# CONTRAINTES DE STYLE
+- Ton direct, neutre, sans superlatifs ("révolutionnaire", "incroyable",
+  "game-changer" → bannis).
+- Pas de jargon non expliqué à la 1ère occurrence.
+- Si la semaine a été calme, écris court. Ne remplis pas avec du bruit.
+
+Commence directement par le \`## ⚡ Les 3 signaux de la semaine\`.`;
+}
+```
+
+---
+
+## Annexe B — `.env.example`
+
+```bash
+# Supabase (DB pour les abonnés)
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Anthropic (génération du brief)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Resend (envoi email)
+RESEND_API_KEY=re_...
+EMAIL_FROM=onboarding@resend.dev
+EMAIL_REPLY_TO=ton.email@gmail.com
+
+# Pour tester sans envoyer aux abonnés
+DRY_RUN_EMAIL=ton.email@gmail.com
+```
+
+---
+
+## Hors scope MVP (ne PAS implémenter aujourd'hui)
+
+- ❌ Mémoire entre runs (ne pas répéter les news d'il y a 1-2 semaines)
+- ❌ Désinscription en 1 clic (token, route /unsubscribe)
+- ❌ Personnalisation par rôle (product eng / SEO / founder / …)
+- ❌ Tiering free / pro / payant
+- ❌ Page d'archives publique
+- ❌ Auth des abonnés, double opt-in
+- ❌ Open rate tracking, click tracking, analytics
+- ❌ A/B test du sujet
+- ❌ Tests unitaires / e2e
+- ❌ Theme dark
+- ❌ proxy.ts (rate limit, redirects)
+
+Tout ça arrive après les 30-50 premiers abonnés actifs. Avant, c'est du
+gold plating.
+
+---
+
+## Ordre d'exécution recommandé pour Claude Code
+
+Faire P1 → P2 → P3 → **STOP, validation utilisateur** (lire le brief généré
+en dry-run, ajuster le prompt si nécessaire).
+
+Puis P4 → P5 → **STOP, validation utilisateur** (test inscription end-to-end).
+
+Puis P6 (manuel, instructions à suivre par l'humain, pas Claude Code).
+
+À chaque "STOP", **ne pas continuer sans confirmation explicite**.
