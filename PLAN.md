@@ -19,12 +19,12 @@ landing publique déployée le même soir.
   React Compiler stable) + TypeScript strict — une seule app, pas de monorepo
 - **Styles** : **SCSS Modules** + CSS custom properties pour les tokens
   (pas de Tailwind)
-- **DB** : Supabase Postgres (free tier)
+- **DB** : Neon Postgres (free tier)
 - **Email** : Resend (free tier : 3 000 mails/mois, 100/jour)
 - **LLM** : Anthropic API — modèle `claude-opus-4-7`, tool `web_search_20260209`
 - **Cron** : GitHub Actions (script Node lancé en CI, **pas** une API route
   Next.js — sinon timeout Vercel free)
-- **Hébergement** : Vercel (web) + Supabase (DB) + Resend (mail)
+- **Hébergement** : Vercel (web) + Neon (DB) + Resend (mail)
 
 **Trois pièges Next.js 16 à connaître** (détaillés dans CONVENTIONS.md) :
 1. `params` et `searchParams` sont **async** → `await` obligatoire
@@ -58,13 +58,13 @@ wwwatch/
 │       ├── tokens.scss             ← CSS custom properties
 │       └── mixins.scss             ← media queries, etc.
 ├── lib/
-│   ├── supabase.ts                 ← client serveur (service_role)
+│   ├── db.ts                       ← client Neon (@neondatabase/serverless)
 │   ├── prompt.ts                   ← LE prompt, cœur du produit
 │   ├── research.ts                 ← appel Claude + web_search
 │   └── email.ts                    ← markdown → HTML + Resend
 ├── scripts/
 │   └── brief.ts                    ← entrypoint exécuté par GH Actions
-├── supabase/
+├── neon/
 │   └── schema.sql
 └── .github/workflows/
     └── weekly-brief.yml
@@ -102,7 +102,7 @@ de surface.
     "next": "^16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "@supabase/supabase-js": "^2.45.0",
+    "@neondatabase/serverless": "^0.10.0",
     "@anthropic-ai/sdk": "^0.30.0",
     "resend": "^4.0.0",
     "marked": "^14.1.0"
@@ -261,16 +261,26 @@ sans erreur. La page affiche "wwwatch", la couleur de fond est `#fafaf9`
 
 ---
 
-## Phase 2 — DB Supabase (5 min)
+## Phase 2 — DB Neon (5 min)
 
-**Goal** : tables `subscribers` et `briefs` créées, accessibles via service_role.
+**Goal** : tables `subscribers` et `briefs` créées, accessibles via `DATABASE_URL`.
 
-**Setup** :
-1. Créer un projet sur supabase.com (région EU-West de préférence)
-2. Copier URL + anon key + service_role key dans `.env.local`
-3. Coller `supabase/schema.sql` dans SQL Editor → Run
+**Setup MCP Neon** (une seule fois, déjà fait si `npx neonctl@latest init` a tourné) :
+```bash
+npx neonctl@latest init
+# → OAuth, crée une API key, configure le MCP dans ~/.claude.json
+```
+Alternative manuelle si besoin :
+```bash
+claude mcp add neon -- npx -y @neondatabase/mcp-server-neon start "<NEON_API_KEY>"
+```
 
-### `supabase/schema.sql`
+**Setup projet** :
+1. Via MCP Neon dans Claude Code : créer un projet `wwwatch` (région `eu-west-2`)
+2. Récupérer le `DATABASE_URL` (connection string pooled) → `.env.local`
+3. Appliquer `neon/schema.sql` via le MCP (execute SQL) ou Neon Console → SQL Editor
+
+### `neon/schema.sql`
 ```sql
 create table if not exists public.subscribers (
   id uuid primary key default gen_random_uuid(),
@@ -292,13 +302,9 @@ create table if not exists public.briefs (
   markdown text not null,
   recipient_count int not null default 0
 );
-
-alter table public.subscribers enable row level security;
-alter table public.briefs enable row level security;
--- Pas de policy publique : tout passe par service_role côté serveur.
 ```
 
-**Acceptance** : tables visibles dans Supabase Table Editor.
+**Acceptance** : tables visibles dans Neon Console → Tables.
 
 ---
 
@@ -307,26 +313,32 @@ alter table public.briefs enable row level security;
 **Goal** : `npm run brief:dry` génère un brief markdown sauvegardé localement
 dans `out/YYYY-MM-DD.md` et envoyé à `DRY_RUN_EMAIL`.
 
-### `lib/supabase.ts`
+### `lib/db.ts`
 ```ts
-import { createClient } from '@supabase/supabase-js';
+import { neon } from '@neondatabase/serverless';
 
-export function getServerSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url) throw new Error('NEXT_PUBLIC_SUPABASE_URL manquant');
-  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY manquant');
-  return createClient(url, key, { auth: { persistSession: false } });
+/** Retourne un client SQL Neon (tagged template literals). */
+export function getSql() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL manquant');
+  return neon(url);
 }
 
 export async function getActiveSubscribers(): Promise<string[]> {
-  const supabase = getServerSupabase();
-  const { data, error } = await supabase
-    .from('subscribers')
-    .select('email')
-    .eq('status', 'active');
-  if (error) throw error;
-  return (data ?? []).map((r) => r.email as string);
+  const sql = getSql();
+  const rows = await sql`
+    SELECT email FROM public.subscribers WHERE status = 'active'
+  `;
+  return rows.map((r) => r['email'] as string);
+}
+
+export async function upsertSubscriber(email: string): Promise<void> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO public.subscribers (email, status, source)
+    VALUES (${email}, 'active', 'landing')
+    ON CONFLICT (email) DO UPDATE SET status = 'active'
+  `;
 }
 
 export async function logBrief(opts: {
@@ -334,13 +346,15 @@ export async function logBrief(opts: {
   markdown: string;
   recipientCount: number;
 }): Promise<void> {
-  const supabase = getServerSupabase();
-  const { error } = await supabase.from('briefs').insert({
-    subject: opts.subject,
-    markdown: opts.markdown,
-    recipient_count: opts.recipientCount,
-  });
-  if (error) console.error('[db] Impossible de logger le brief :', error);
+  const sql = getSql();
+  try {
+    await sql`
+      INSERT INTO public.briefs (subject, markdown, recipient_count)
+      VALUES (${opts.subject}, ${opts.markdown}, ${opts.recipientCount})
+    `;
+  } catch (err) {
+    console.error('[db] Impossible de logger le brief :', err);
+  }
 }
 ```
 
@@ -401,11 +415,13 @@ export async function generateBriefMarkdown(): Promise<string> {
 ```
 
 **Points critiques à NE PAS modifier** :
-- `model: 'claude-opus-4-7'` (Opus, pas Sonnet : qualité de synthèse,
-  c'est 1× par semaine)
+- `model: 'claude-sonnet-4-6'` (validé après test : Opus à $12/run à cause
+  des 60 recherches × tokens accumulés ; Sonnet ~$0.60/run, qualité suffisante)
 - `type: 'web_search_20260209'` (version 2026 avec dynamic filtering qui
   économise des tokens)
-- `max_uses: 20` (couvre les 12-18 recherches du prompt + marge)
+- `max_uses: 5` (production) / `1` (dry-run) — web_search_20260209 fait ~3
+  sous-recherches par use, donc 5 uses ≈ 15 recherches réelles ; max_uses: 20
+  provoquait 60 recherches et 743K tokens d'entrée)
 - `max_tokens: 8192` (suffisant pour ~900 mots de brief + tool calls)
 - Le cast `as never` sur le tool : le SDK n'a pas toujours le type le
   plus récent. À enlever quand le SDK rattrapera.
@@ -514,7 +530,7 @@ via Server Action (pattern Next 16).
 ```ts
 'use server';
 
-import { getServerSupabase } from '@/lib/supabase';
+import { upsertSubscriber } from '@/lib/db';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -535,19 +551,7 @@ export async function subscribe(
   const email = raw.trim().toLowerCase();
 
   try {
-    const supabase = getServerSupabase();
-    const { error } = await supabase
-      .from('subscribers')
-      .upsert(
-        { email, status: 'active', source: 'landing' },
-        { onConflict: 'email' }
-      );
-
-    if (error) {
-      console.error('[subscribe]', error);
-      return { status: 'error', message: 'Erreur serveur, réessaie plus tard.' };
-    }
-
+    await upsertSubscriber(email);
     return {
       status: 'ok',
       message: 'Inscrit. Le prochain brief arrive lundi matin.',
@@ -708,8 +712,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_REPLY_TO: ${{ secrets.EMAIL_REPLY_TO }}
 ```
@@ -729,9 +732,7 @@ jobs:
 1. `vercel.com` → Import GitHub repo
 2. Vercel détecte Next.js 16 automatiquement, build avec Turbopack
 3. Variables d'env à ajouter dans Vercel :
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `DATABASE_URL` (connection string Neon — utiliser la version **pooled**)
 4. Deploy → URL publique fonctionnelle
 
 **Email production** :
@@ -874,10 +875,8 @@ Commence directement par le \`## ⚡ Les 3 signaux de la semaine\`.`;
 ## Annexe B — `.env.example`
 
 ```bash
-# Supabase (DB pour les abonnés)
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+# Neon (DB pour les abonnés) — connection string pooled
+DATABASE_URL=postgres://user:password@ep-xxx.eu-west-2.aws.neon.tech/neondb?sslmode=require
 
 # Anthropic (génération du brief)
 ANTHROPIC_API_KEY=sk-ant-...
