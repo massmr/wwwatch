@@ -2,7 +2,7 @@
 
 > Newsletter hebdo de veille IA pour product engineers. Brief généré chaque
 > lundi par Claude API + web_search, envoyé via Resend aux abonnés stockés
-> dans Supabase. Landing Next.js pour l'inscription. Cron via GitHub Actions.
+> dans Neon Postgres. Landing Next.js pour l'inscription. Cron via GitHub Actions.
 
 **Objectif** : 1ʳᵉ newsletter envoyée à moi-même (dry run) en fin de journée,
 landing publique déployée le même soir.
@@ -21,7 +21,8 @@ landing publique déployée le même soir.
   (pas de Tailwind)
 - **DB** : Neon Postgres (free tier)
 - **Email** : Resend (free tier : 3 000 mails/mois, 100/jour)
-- **LLM** : Anthropic API — modèle `claude-opus-4-7`, tool `web_search_20260209`
+- **LLM** : Anthropic API — modèle `claude-sonnet-4-6`, tool `web_search_20250305`
+  (voir Phase 3 pour le détail des décisions de coût/fiabilité)
 - **Cron** : GitHub Actions (script Node lancé en CI, **pas** une API route
   Next.js — sinon timeout Vercel free)
 - **Hébergement** : Vercel (web) + Neon (DB) + Resend (mail)
@@ -96,7 +97,8 @@ de surface.
     "build": "next build",
     "start": "next start",
     "brief": "tsx scripts/brief.ts",
-    "brief:dry": "DRY_RUN=1 tsx scripts/brief.ts"
+    "brief:local": "tsx --env-file=.env.local scripts/brief.ts",
+    "brief:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/brief.ts"
   },
   "dependencies": {
     "next": "^16.0.0",
@@ -369,62 +371,79 @@ Appel Anthropic. **Code de référence** (à respecter, surtout les versions) :
 import Anthropic from '@anthropic-ai/sdk';
 import { buildPrompt } from './prompt';
 
-const MODEL = 'claude-opus-4-7';
+const MODEL = 'claude-sonnet-4-6';
+const MAX_RETRIES = 2;
+type TextBlock = { type: 'text'; text: string };
 
-export async function generateBriefMarkdown(): Promise<string> {
+export async function generateBriefMarkdown(maxUses = 5): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY manquant');
 
-  const client = new Anthropic({ apiKey });
+  // maxRetries: 0 — retry géré manuellement pour distinguer erreurs réseau
+  // (retryables) et erreurs logiques (non-retryables).
+  const client = new Anthropic({ apiKey, maxRetries: 0 });
   const prompt = buildPrompt(new Date());
 
-  console.log(`[research] Appel ${MODEL} avec web_search...`);
+  console.log(`[research] Appel ${MODEL} avec web_search (max_uses=${maxUses})...`);
   const start = Date.now();
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 8192,
-    tools: [
-      {
-        // SDK pas toujours à jour sur les types de server tools.
-        type: 'web_search_20260209',
-        name: 'web_search',
-        max_uses: 20,
-      } as never,
-    ],
-    messages: [{ role: 'user', content: prompt }],
-  });
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+    try {
+      // stream() uses SSE (keep-alive) — évite timeout sur longues tool-use chains.
+      const response = await client.messages.stream({
+        model: MODEL,
+        max_tokens: 8192,
+        tools: [
+          {
+            // SDK pas toujours à jour sur les types de server tools.
+            type: 'web_search_20250305',
+            name: 'web_search',
+            max_uses: maxUses,
+          } as never,
+        ],
+        messages: [{ role: 'user', content: prompt }],
+      }).finalMessage();
 
-  console.log(`[research] OK en ${((Date.now() - start) / 1000).toFixed(1)}s`);
+      const text = response.content
+        .filter((b): b is TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('\n\n')
+        .trim();
 
-  type TextBlock = { type: 'text'; text: string };
-  const text = response.content
-    .filter((b): b is TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('\n\n')
-    .trim();
+      if (!text) throw new Error("Claude n'a rien retourné");
 
-  if (!text) throw new Error('Claude n\'a rien retourné');
+      const { usage } = response;
+      console.log(`[research] OK en ${((Date.now() - start) / 1000).toFixed(1)}s`);
+      console.log(`[research] tokens in=${usage.input_tokens} out=${usage.output_tokens}`);
+      return text;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === "Claude n'a rien retourné") throw err; // non-retryable
+      lastErr = err;
+      if (attempt <= MAX_RETRIES)
+        console.warn(`[research] Tentative ${attempt} échouée (${msg}), retry...`);
+    }
+  }
 
-  const usage = response.usage;
-  console.log(
-    `[research] tokens in=${usage.input_tokens} out=${usage.output_tokens}`
-  );
-  return text;
+  const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  throw new Error(`[research] Échec après ${MAX_RETRIES + 1} tentatives : ${msg}`);
 }
 ```
 
 **Points critiques à NE PAS modifier** :
-- `model: 'claude-sonnet-4-6'` (validé après test : Opus à $12/run à cause
-  des 60 recherches × tokens accumulés ; Sonnet ~$0.60/run, qualité suffisante)
-- `type: 'web_search_20250305'` (downgrade validé depuis `20260209` : sandbox
-  de dynamic filtering causait "Detection timed out after 25s" systématique)
-- `max_uses: 5` (production) / `1` (dry-run) — web_search_20260209 fait ~3
-  sous-recherches par use, donc 5 uses ≈ 15 recherches réelles ; max_uses: 20
-  provoquait 60 recherches et 743K tokens d'entrée)
-- `max_tokens: 8192` (suffisant pour ~900 mots de brief + tool calls)
-- Le cast `as never` sur le tool : le SDK n'a pas toujours le type le
-  plus récent. À enlever quand le SDK rattrapera.
+- `model: 'claude-sonnet-4-6'` — Opus à $12/run (60 recherches × 743K tokens) ;
+  Sonnet ~$0.60/run, qualité suffisante pour ce use case. Validé en prod.
+- `type: 'web_search_20250305'` — downgrade depuis `web_search_20260209` : le sandbox
+  de dynamic filtering causait "Detection timed out after 25s" systématique.
+  Repasser sur `20260209` si Anthropic stabilise le service.
+- `max_uses: 5` (prod) / `3` (dry-run) — passé par `scripts/brief.ts`.
+  web_search_20260209 faisait ~3 sous-recherches/use → 20 uses = 60 recherches =
+  743K tokens. Avec `20250305` (sans sandbox) : 5 uses ≈ 5 recherches directes.
+- `max_tokens: 8192` — suffisant pour ~900 mots de brief + tool calls.
+- `stream().finalMessage()` — ne pas revenir à `create()` : bloque en attendant
+  la réponse JSON complète → timeout après 40+ min.
+- Le cast `as never` sur le tool : le SDK n'a pas toujours le type le plus récent.
 
 ### `lib/email.ts`
 ```ts
@@ -754,119 +773,161 @@ Sans domaine vérifié : tu peux **uniquement** t'envoyer à toi-même via
 
 ## Annexe A — Le prompt complet (`lib/prompt.ts`)
 
+> **Version B** — prompt réécrit après validation du dry run.
+> Ton direct, structure flexible, interdictions formelles anti-boilerplate.
+> `lib/prompt.ts` est la source de vérité — cette annexe est une copie de référence.
+
 ```ts
 export function buildPrompt(now: Date): string {
   const iso = now.toISOString().slice(0, 10);
   const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    .toISOString().slice(0, 10);
+    .toISOString()
+    .slice(0, 10);
 
   return `# RÔLE
-Tu rédiges la veille IA hebdomadaire d'un **product engineer** qui code
-avec des LLMs. Ton lecteur veut savoir ce qui change concrètement sa stack
-cette semaine. Pas de hype, pas de business porn, pas de réglementation
-sauf impact technique direct.
+Tu es un product engineer qui rédige la veille IA hebdo pour d'autres product engineers.
 
 # PÉRIODE
 Du ${weekStart} au ${iso} (7 derniers jours).
 
+# OBJECTIF
+Répondre à : "Est-ce que ma stack a bougé cette semaine ?"
+
 # STRATÉGIE DE RECHERCHE
-Effectue **12 à 18 recherches web** ciblées, réparties ainsi :
 
-## Annonces officielles (4-5 recherches)
-- "Anthropic OR OpenAI OR Google DeepMind release ${weekStart}"
-- "Meta AI OR Mistral OR xAI announcement past week"
-- "new AI model launched this week ${iso.slice(0, 7)}"
-- "Hugging Face new model trending"
+Cherche dans ces catégories, mais adapte selon l'actu réelle :
 
-## Recherche & papers (2-3 recherches)
-- "huggingface daily papers ${iso.slice(0, 7)}"
-- "arxiv cs.AI trending paper this week"
+**Annonces officielles** : Anthropic, OpenAI, Google DeepMind, Meta, Mistral, xAI, Cohere
+→ Recherche générique type "AI model release this week" + recherches ciblées si tu trouves quelque chose de précis
 
-## Communauté (4-5 recherches)
-- "Hacker News top AI ${weekStart}"
-- "Hacker News Show HN AI tool this week"
-- "reddit LocalLLaMA new model"
-- "GitHub trending python AI repository ${iso.slice(0, 7)}"
+**Research** : Hugging Face Daily Papers, arXiv cs.AI trending
+→ Si pas de paper pertinent cette semaine, skip cette catégorie
 
-## Triangulation (2-3 recherches)
-- "TLDR AI newsletter ${weekStart}"
-- "Import AI newsletter Jack Clark recent"
-- "AI funding round series A B ${weekStart}"
+**Communauté** : Hacker News top AI, reddit LocalLLaMA, GitHub trending
+→ Filtre par score (HN > 100 points, GitHub > 500 stars cette semaine)
 
-Reformule les requêtes qui ne ramènent rien. **Si tu ne trouves rien de
-pertinent dans une catégorie, dis-le explicitement plutôt que de combler
-avec du bruit.**
+**Triangulation** : TLDR AI newsletter, Import AI, funding rounds récents
+→ Bonus, pas obligatoire si tu as déjà suffisamment de contenu
+
+**Nombre de recherches** : autant que nécessaire (généralement 10-20).
+Si une recherche ne donne rien de pertinent, pivote vers autre chose.
+Si un sujet domine l'actu (ex: grosse annonce Google I/O), creuse davantage.
 
 # CRITÈRES DE FILTRAGE
-Garde uniquement un item s'il répond à AU MOINS UN critère :
-- Nouveau modèle ou MAJ majeure (capacités, prix, contexte)
-- Nouvel outil / framework / API utilisable maintenant
+
+Garde un item seulement s'il répond à AU MOINS UN critère :
+- Nouveau modèle ou MAJ majeure (capacités, prix, fenêtre de contexte)
+- Outil/framework/API utilisable maintenant
 - Paper avec impact pratique (benchmark battu, technique reproductible)
 - Levée > 20M$ ou acquisition qui change le marché
-- Incident technique structurant (faille, jailbreak public, etc.)
+- Incident technique structurant (faille, jailbreak public)
 
-**Écarte** : avis personnels non sourcés, hype sans produit, redites de
-news déjà couvertes ailleurs depuis > 7 jours.
+**Écarte systématiquement** :
+- Avis personnels non sourcés
+- Hype sans produit concret
+- Redites de news déjà couvertes depuis > 7 jours
+- Rumeurs sans confirmation
+- Annonces "coming soon" sans date
 
 # GARDE-FOUS ANTI-HALLUCINATION (CRITIQUE)
-- Chaque item DOIT avoir une URL réellement visitée via web_search. Pas
-  d'URL vérifiée → n'inclus PAS l'item.
-- Date d'annonce antérieure à ${weekStart} → écarte-la.
-- Pour chaque chiffre cité (benchmark, prix, levée) : la source doit
-  l'indiquer explicitement, sinon omets le chiffre.
-- Marque les rumeurs "🔁 Rumeur" et précise la source.
-- Sources contradictoires → mentionne le désaccord.
 
-# FORMAT DE SORTIE (Markdown, ~700-900 mots max)
+Ces règles sont NON-NÉGOCIABLES :
 
-Démarre directement par le contenu, pas de préambule.
+- Chaque item DOIT avoir une URL réellement visitée via web_search
+- Pas d'URL vérifiée → n'inclus PAS l'item, même s'il semble pertinent
+- Pour chaque chiffre cité (benchmark, prix, levée) : la source doit l'indiquer explicitement, sinon omets le chiffre
+- Date d'annonce antérieure à ${weekStart} → écarte l'item
+- Rumeurs : marque "🔁 Rumeur" et précise la source
+- Sources contradictoires → mentionne le désaccord
+
+# FORMAT DE SORTIE
+
+Brief en markdown, 500-900 mots (ajuste selon l'actualité réelle de la semaine).
 
 ---
 
 ## ⚡ Les 3 signaux de la semaine
-Top 3 items qui comptent vraiment pour un product engineer.
-Format : **[Nom]** — *pourquoi ça change quelque chose pour toi*. [lien](url)
+Top 3 items qui changent vraiment quelque chose pour un product engineer.
+
+Format pour chaque signal : titre + pourquoi ça compte + lien cliquable.
+Sois concret : pas "ça améliore les performances", mais "4× plus rapide" ou "coût divisé par 2".
 
 ---
 
 ## 🧠 Modèles & APIs
-3 à 6 items max. Pour chaque :
+3-8 items selon l'actualité de la semaine.
 
-**[Nom]** — [lien](url)
-> Une phrase neutre sur ce que c'est.
-> **Pourquoi ça compte** : 1 phrase orientée stack/usage.
-> 💲 [Pricing si connu]
+Si pas de release majeure cette semaine : écris "Semaine calme côté modèles" OU skip cette section.
+
+Pour chaque item, **varie la structure** (pas de template rigide) :
+- Titre cliquable [Nom] — [lien](url)
+- Ce que c'est en 1 phrase
+- Pourquoi c'est utile (ou pas) en 1 phrase
+- Prix si pertinent, une seule fois : 💲 $X in / $Y out par 1M tokens
 
 ---
 
 ## 🛠️ Outils & frameworks
-3 à 5 items. Repos, librairies, dev tools. Même structure +
-> ⚡ **À tester** : oui/non + raison concrète.
+2-6 items selon l'actualité.
+
+Même logique que Modèles : adapte le nombre au contenu réel de la semaine.
+
+Pour chaque outil :
+- Titre + lien cliquable
+- Ce que ça fait
+- Pourquoi c'est utile (ou pas) pour un product engineer
+- GitHub stars si pertinent (ex: nouveau repo qui explose)
 
 ---
 
 ## 📑 Papers à connaître
-2 à 4 papers max, choisis par utilité pratique > nouveauté académique.
+0-4 papers max.
 
-**[Titre]** — [arxiv/source](url)
-> 1 phrase sur la contribution.
-> **Application** : ce que ça change si on l'intègre dans un produit.
+Si pas de paper pertinent cette semaine : **skip cette section entièrement**.
+Ne mets PAS de placeholder type "Pas de papers cette semaine".
+
+Pour chaque paper :
+**[Titre]** — [lien arxiv/source](url)
+Une phrase sur la contribution technique.
+**Application** : ce que ça change si on l'intègre dans un produit.
 
 ---
 
 ## 🔭 À surveiller
+0-3 items max.
+
 Annonces partielles, dates de release connues, betas privées repérées.
-Max 3 items, une ligne chacun.
+Format ultra-court : une ligne par item.
+
+Si rien à surveiller : skip cette section.
 
 ---
 
-# CONTRAINTES DE STYLE
-- Ton direct, neutre, sans superlatifs ("révolutionnaire", "incroyable",
-  "game-changer" → bannis).
-- Pas de jargon non expliqué à la 1ère occurrence.
-- Si la semaine a été calme, écris court. Ne remplis pas avec du bruit.
+# TON ET STYLE
 
-Commence directement par le \`## ⚡ Les 3 signaux de la semaine\`.`;
+Tu parles comme un product engineer à un autre product engineer.
+Pas comme un communiqué de presse. Pas comme un chatbot corporate.
+
+✓ Bon ton :
+- "Cursor fait tourner tes refactos dans le cloud. Fini le lag."
+- "Gemini Flash : 4× plus rapide, $1.50/$9. Upgrade direct si t'es dessus."
+
+✗ Mauvais ton :
+- "Pourquoi ça compte : cela permet d'optimiser les workflows de développement"
+- "Cette release apporte des améliorations substantielles aux capacités existantes"
+
+**Interdictions formelles** :
+
+❌ Répéter "Pourquoi ça compte :" plus de 2× dans tout le brief
+❌ Utiliser "⚡ À tester :" (intègre l'info naturellement dans le texte)
+❌ Meta-commentaires ("je n'ai pas pu rechercher", "lacune", "limite d'appels")
+❌ Blockquotes (>) sauf si tu cites littéralement quelqu'un
+❌ Liens non-cliquables (toujours format markdown [texte](url))
+
+**Si la semaine est calme** : écris 400-500 mots au lieu de 900. Ne remplis pas avec du bruit.
+
+Démarre directement par \`## ⚡ Les 3 signaux de la semaine\`.
+Pas de préambule, pas d'introduction.`;
 }
 ```
 
