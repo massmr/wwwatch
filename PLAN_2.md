@@ -1,130 +1,220 @@
-# Prompt pour créer PLAN_2.md
+# PLAN_2.md — wwwatch MVP
 
-Tu vas créer un document PLAN_2.md qui documente l'état actuel du projet wwwatch et les prochaines phases d'implémentation.
-
----
-
-## Contexte du projet
-
-**wwwatch** est une newsletter hebdomadaire de veille IA pour product engineers, envoyée chaque lundi matin.
-
-### Décisions architecturales prises
-
-1. **Stack technique** :
-   - Next.js 16 (app router)
-   - Neon Postgres (free tier, 0.5GB)
-   - React Email pour les templates
-   - Anthropic Claude API (Sonnet 4.6)
-   - Resend pour l'envoi d'emails
-   - Vercel pour l'hosting
-   - GitHub Actions pour le cron
-
-2. **Génération du brief** :
-   - Prompt Version B : "structure guidée" avec flexibilité adaptative
-   - Recherche web via `web_search` tool (10-20 recherches dynamiques)
-   - Système de fallback vers collecteurs RSS/API si web_search timeout
-   - Output : markdown stylé, 500-900 mots
-
-3. **Template email** :
-   - React Email avec composants modulaires
-   - Header fixe : "⚡ wwwatch - Veille IA pour product engineers"
-   - Footer avec lien unsubscribe
-   - Styling inline compatible tous clients mail
-
-4. **Coûts** :
-   - Claude Sonnet 4.6 + web_search : ~$0.13/brief = $6.76/an
-   - Fallback collecteurs : ~$0.08/brief = $4.16/an
-   - Resend : gratuit (3000 emails/mois)
-   - Neon : gratuit (0.5GB)
-   - Vercel : gratuit
-   - **Total : $4-7/an**
+**Version:** 2.1  
+**Date:** 20 mai 2026  
+**Status:** Phases partiellement complètes (détails ci-dessous)
 
 ---
 
-## Fichiers déjà créés
+## Table des matières
+
+1. [Vue d'ensemble](#vue-densemble)
+2. [État actuel](#état-actuel)
+3. [Architecture technique](#architecture-technique)
+4. [Schéma de base de données](#schéma-de-base-de-données)
+5. [Phases d'implémentation](#phases-dimplémentation)
+6. [Variables d'environnement](#variables-denvironnement)
+7. [Coûts détaillés](#coûts-détaillés)
+8. [Prompt Version B](#prompt-version-b)
+9. [Système de fallback](#système-de-fallback)
+10. [Décisions techniques](#décisions-techniques)
+11. [Contraintes MVP](#contraintes-mvp)
+12. [Testing](#testing-strategy)
+13. [Monitoring](#monitoring-et-observabilité)
+14. [Prochaines étapes](#prochaines-étapes-immédiates)
+15. [Références](#références-et-ressources)
+
+---
+
+## Vue d'ensemble
+
+### Pitch
+
+**wwwatch** est une newsletter hebdomadaire de veille IA, envoyée chaque lundi matin, qui filtre le bruit pour ne garder que ce qui impacte vraiment la stack d'un product engineer.
+
+### Public cible
+
+Product engineers qui codent avec des LLMs au quotidien. Ils ont besoin de savoir :
+- Quels modèles viennent de sortir (et s'ils doivent upgrade)
+- Quels outils/frameworks méritent d'être testés
+- Quels papers ont un impact pratique
+- Quelles levées/acquisitions changent le marché
+
+### Proposition de valeur
+
+**Signal vs bruit.** Contrairement à TLDR AI (généraliste tech) ou Import AI (académique), wwwatch se concentre exclusivement sur ce qui change ta stack cette semaine.
+
+**Format court.** 500-900 mots, 5 minutes de lecture, envoyé le lundi matin. Pas de newsletter de 3000 mots qu'on ne lit jamais.
+
+**Ton direct.** Product engineer → product engineer. Pas de corporate speak, pas de hype.
+
+### Différenciateur
+
+| Critère | wwwatch | TLDR AI | Import AI |
+|---------|---------|---------|-----------|
+| Focus | Product engineering | Tech généraliste | Research ML |
+| Longueur | 500-900 mots | 1500+ mots | 2000+ mots |
+| Fréquence | Hebdo (lundi) | Quotidien | Hebdo (dimanche) |
+| Ton | Direct, pratique | Neutre, factuel | Académique |
+| Coût | Gratuit | Gratuit | Gratuit |
+
+---
+
+## État actuel
+
+### ✅ Fichiers créés (React Email templates)
 
 ```
 wwwatch/
-├── emails/
-│   ├── weekly-brief.tsx              # Template React Email principal
+├── emails/                            # Templates React Email
+│   ├── weekly-brief.tsx              # Template principal
 │   └── components/
 │       ├── header.tsx                # Header "⚡ wwwatch"
 │       ├── footer.tsx                # Footer avec unsubscribe
 │       └── content.tsx               # Rendu markdown → HTML
 ├── lib/
-│   ├── prompt.ts                     # Prompt Version B (structure guidée)
-│   └── email.ts                      # sendBriefToList() avec React Email
-├── package.json                       # Deps installées
+│   └── prompt.ts                     # Prompt Version B (structure guidée)
+├── package.json                       # Deps: @react-email/components
 ├── tsconfig.json                      # Config TypeScript
-├── FALLBACK_IMPLEMENTATION.md         # Doc du système de fallback
+├── FALLBACK_IMPLEMENTATION.md         # Doc système de fallback
 ├── REACT_EMAIL_SETUP.md               # Doc React Email
-└── CONVENTIONS.md                     # Règles de dev (TypeScript strict, etc.)
+└── CONVENTIONS.md                     # Règles de dev
 ```
 
-**Fichiers manquants (à créer)** :
-- `lib/research.ts` : génération du brief via Claude API
-- `lib/db.ts` : connexion Neon + queries subscribers/briefs
-- `scripts/brief.ts` : orchestrateur CLI (dry run, prod)
-- `app/page.tsx` : landing page avec formulaire subscribe
-- `app/api/subscribe/route.ts` : API route pour inscription
-- `app/unsubscribe/page.tsx` : page de désabonnement
-- `schema.sql` : schéma DB Neon
-- `.github/workflows/weekly-brief.yml` : cron GitHub Actions
+### ✅ Fichiers créés (Claude Code — commit feat(plan2))
+
+```
+wwwatch/
+├── lib/
+│   ├── research.ts                   # Génération brief (Claude Sonnet 4.6)
+│   ├── db.ts                         # Connexion Neon + queries
+│   └── email.ts                      # Email sending (marked, sans React Email)
+├── app/
+│   └── unsubscribe/
+│       ├── page.tsx                  # Page désabonnement + HMAC validation
+│       └── page.module.scss          # Styles minimalistes
+└── .env.example                       # SITE_URL + UNSUBSCRIBE_SECRET
+```
+
+### ⚠️ Conflit à résoudre
+
+**`lib/email.ts`** existe en 2 versions :
+- **Version React Email** (PLAN_2) : utilise `render(<WeeklyBrief />)`
+- **Version Claude Code** : utilise `marked.parse()` directement
+
+**→ À merger** : combiner React Email + HMAC signed links (voir section Prochaines étapes)
+
+### ❌ Fichiers manquants
+
+```
+wwwatch/
+├── schema.sql                         # Schéma DB Neon
+├── scripts/
+│   └── brief.ts                      # Orchestrateur CLI
+├── app/
+│   ├── page.tsx                      # Landing page
+│   ├── api/subscribe/route.ts        # API route inscription
+│   └── styles/                       # Styles globaux et landing
+└── .github/workflows/
+    └── weekly-brief.yml              # Cron GitHub Actions
+```
 
 ---
 
-## Ce que PLAN_2.md doit contenir
+## Architecture technique
 
-### 1. Vue d'ensemble du projet
+### Diagramme de flux
 
-- Pitch en 2 phrases
-- Public cible
-- Proposition de valeur
-- Différenciateur vs TLDR AI, Import AI
-
-### 2. Architecture technique complète
-
-**Diagramme de flux** (en ASCII art ou markdown) :
 ```
-Landing page → Subscribe → Neon DB
-                              ↓
-               GitHub Actions cron (lundi 6am UTC)
-                              ↓
-               scripts/brief.ts orchestrator
-                              ↓
-               lib/research.ts:
-                 - Try web_search (Claude Sonnet 4.6)
-                 - Fallback collectors si timeout
-                              ↓
-               lib/email.ts:
-                 - render(<WeeklyBrief />) via React Email
-                 - sendBriefToList() via Resend
-                              ↓
-               Subscribers reçoivent le brief
+┌─────────────────────────────────────────────────────────┐
+│ Landing page (Next.js)                                  │
+│ ↓ User entre son email                                  │
+│ ↓ Server Action: subscribe()                            │
+└────────────────────┬────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────────┐
+│ Neon Postgres DB                                        │
+│ → Table subscribers (email, status, created_at...)      │
+│ → Table briefs (historique)                             │
+└────────────────────┬────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────────┐
+│ GitHub Actions Cron                                     │
+│ → Chaque lundi 6am UTC                                  │
+│ → Déclenche: scripts/brief.ts                           │
+└────────────────────┬────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────────┐
+│ scripts/brief.ts (orchestrateur)                        │
+│ → Flags: --dry, --websearch, --direct                  │
+│ → Appelle lib/research.ts                               │
+└────────────────────┬────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────────┐
+│ lib/research.ts (génération brief)                      │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ PRIMARY: Claude Sonnet 4.6 + web_search             │ │
+│ │ → 10-20 recherches dynamiques                       │ │
+│ │ → Timeout 120s                                      │ │
+│ └──────────────────┬──────────────────────────────────┘ │
+│                    ↓ (timeout/error)                     │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ FALLBACK: Collecteurs RSS/API                       │ │
+│ │ → HN, HF, GitHub, arXiv, TLDR                       │ │
+│ └──────────────────┬──────────────────────────────────┘ │
+└────────────────────┼────────────────────────────────────┘
+                     ↓
+                Markdown brief généré
+                     ↓
+┌─────────────────────────────────────────────────────────┐
+│ lib/email.ts (rendu + envoi)                            │
+│ → render(<WeeklyBrief />) via React Email               │
+│ → buildUnsubscribeUrl(email) avec HMAC-SHA256           │
+│ → sendBriefToList() via Resend                          │
+└────────────────────┬────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────────┐
+│ Email HTML stylé + HMAC signed unsubscribe              │
+│ → Header: "⚡ wwwatch"                                  │
+│ → Content: markdown → HTML stylé                        │
+│ → Footer: lien unsubscribe signé                        │
+└────────────────────┬────────────────────────────────────┘
+                     ↓
+              Subscribers reçoivent le brief
 ```
 
-**Stack détaillée** :
-- Frontend : Next.js 16, React 19, SCSS Modules
-- Backend : Next.js API routes, Server Actions
-- Database : Neon Postgres (serverless)
-- Email : React Email + Resend
-- AI : Anthropic Claude Sonnet 4.6
-- Hosting : Vercel (frontend + API)
-- CI/CD : GitHub Actions
+### Stack technique
 
-### 3. Schéma de base de données
+| Couche | Technologie | Justification |
+|--------|-------------|---------------|
+| **Frontend** | Next.js 16 (app router) | Server Components, Server Actions |
+| **Styling** | SCSS Modules | Scoped styles, tokens CSS |
+| **Database** | Neon Postgres | Serverless, free tier 0.5GB |
+| **Email template** | React Email | Composants → HTML inline, preview dev |
+| **Email sending** | Resend | Free 3000/mois, support React Email |
+| **AI** | Claude Sonnet 4.6 | $0.13/brief, web_search intégré |
+| **Hosting** | Vercel | Free tier, CI/CD intégré |
+| **CI/CD** | GitHub Actions | Free 2000 min/mois |
+
+---
+
+## Schéma de base de données
+
+### Fichier: `schema.sql` (à créer)
 
 ```sql
 -- Table subscribers
 CREATE TABLE subscribers (
   email VARCHAR(255) PRIMARY KEY,
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT NOW()
+  status VARCHAR(50) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT NOW(),
+  unsubscribed_at TIMESTAMP
 );
 
-CREATE INDEX idx_subscribers_active ON subscribers(active);
+CREATE INDEX idx_subscribers_status ON subscribers(status);
+CREATE INDEX idx_subscribers_created_at ON subscribers(created_at);
 
--- Table briefs (historique)
+-- Table briefs (historique des envois)
 CREATE TABLE briefs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   subject TEXT NOT NULL,
@@ -137,229 +227,465 @@ CREATE TABLE briefs (
 CREATE INDEX idx_briefs_created_at ON briefs(created_at DESC);
 ```
 
-### 4. Phases d'implémentation
+**Note** : Claude Code a implémenté `deactivateSubscriber()` qui set `status='unsubscribed'` + `unsubscribed_at=NOW()`.
 
-Détaille 6 phases MVP avec critères d'acceptance clairs.
+### Queries principales (déjà dans lib/db.ts)
 
-**Phase 1 : Setup Next.js + DB**
-- Init Next.js 16 avec app router
-- Configurer Neon DB
-- Créer schema.sql et migrer
-- Implémenter lib/db.ts (connexion + queries)
-- **Acceptance** : `SELECT * FROM subscribers` retourne []
+```typescript
+// Récupérer les abonnés actifs
+getActiveSubscribers(): Promise<string[]>
+// SELECT email FROM subscribers WHERE status = 'active'
 
-**Phase 2 : Génération du brief (avec STOP pour validation)**
-- Implémenter lib/research.ts avec web_search
-- Implémenter fallback collecteurs (si temps)
-- Script CLI : scripts/brief.ts avec flag --dry
-- **STOP OBLIGATOIRE** : générer 2-3 briefs, valider qualité avant de continuer
-- **Acceptance** : `npm run brief:dry` génère un brief et l'envoie à DRY_RUN_EMAIL
+// Désabonner un email
+deactivateSubscriber(email: string): Promise<void>
+// UPDATE subscribers SET status='unsubscribed', unsubscribed_at=NOW() WHERE email=$1
 
-**Phase 3 : Landing page + Subscribe**
-- Créer app/page.tsx (formulaire simple)
-- Créer app/api/subscribe/route.ts (Server Action)
-- Créer app/unsubscribe/page.tsx
-- Styling SCSS minimal
-- **Acceptance** : s'inscrire via la landing → email apparaît dans DB
+// Logger un brief envoyé
+logBrief(data): Promise<void>
+// INSERT INTO briefs (subject, markdown, html, recipient_count) VALUES (...)
+```
 
-**Phase 4 : Email React template (FAIT)**
-- ✅ Template React Email créé
-- ✅ Header/Footer/Content components
-- ✅ lib/email.ts avec render()
-- **Acceptance** : `npm run email:dev` affiche le template
+---
 
-**Phase 5 : CI/CD GitHub Actions**
-- Créer .github/workflows/weekly-brief.yml
-- Cron : lundi 6am UTC
-- Secrets : ANTHROPIC_API_KEY, RESEND_API_KEY, DATABASE_URL
-- **Acceptance** : déclencher manuellement le workflow → brief envoyé
+## Phases d'implémentation
 
-**Phase 6 : Deploy Vercel + monitoring**
-- Deploy sur Vercel
-- Configurer domaine wwwatch.dev
-- Configurer env vars Vercel
-- Setup Resend analytics
-- **Acceptance** : visiter wwwatch.dev → landing visible, s'inscrire fonctionne
+### Phase 1 : Setup Next.js + DB Neon ⚙️ **EN COURS**
 
-### 5. Variables d'environnement
+**Objectif** : Bootstrapper le projet et connecter Neon DB.
 
-Liste complète des env vars requises :
+**Status** :
+- ✅ `lib/db.ts` créé (connexion + queries)
+- ❌ `schema.sql` manquant
+- ❌ Schéma pas exécuté sur Neon
 
-**Development (.env.local)** :
+**Tâches restantes** :
+1. Créer `schema.sql` avec les tables
+2. Se connecter à Neon console
+3. Exécuter le schéma SQL
+4. Tester connexion : `npm run db:test`
+
+**Acceptance** :
+```bash
+node -e "import('./lib/db.js').then(db => db.getActiveSubscribers()).then(console.log)"
+# Output: []
+```
+
+---
+
+### Phase 2 : Génération du brief ⚙️ **EN COURS**
+
+**Objectif** : Générer automatiquement le brief via Claude API.
+
+**Status** :
+- ✅ `lib/research.ts` créé (Claude Sonnet 4.6, web_search)
+- ✅ `lib/prompt.ts` existe (Prompt Version B)
+- ❌ `scripts/brief.ts` manquant (orchestrateur CLI)
+
+**Tâches restantes** :
+1. Créer `scripts/brief.ts` :
+   - Flag `--dry` pour test
+   - Flags `--websearch` / `--direct`
+   - Appelle `generateBriefMarkdown()`
+   - Appelle `sendBriefToList()`
+   - Logs clairs (durée, tokens)
+2. Tester génération : `npm run brief:dry`
+
+**STOP OBLIGATOIRE** après création :
+- Générer 2-3 briefs
+- Valider qualité, ton, liens cliquables
+- Valider pas de narration du processus
+
+**Acceptance** :
+```bash
+npm run brief:dry
+# Output:
+# [research] web_search OK en 45s
+# [brief] Sauvegardé dans out/2026-05-20.md
+# [brief] Envoyé: 1, échoué: 0
+```
+
+---
+
+### Phase 3 : Landing page + Subscribe ⚙️ **EN COURS**
+
+**Objectif** : Créer la landing page avec formulaire d'inscription.
+
+**Status** :
+- ✅ `app/unsubscribe/page.tsx` créé (avec HMAC validation)
+- ❌ `app/page.tsx` manquant (landing page)
+- ❌ `app/api/subscribe/route.ts` manquant
+- ❌ Styles globaux manquants
+
+**Tâches restantes** :
+1. Créer `app/page.tsx` :
+   - Hero section avec value prop
+   - Formulaire email simple
+   - CTA clair
+2. Créer `app/api/subscribe/route.ts` :
+   - Validation email (regex)
+   - Insertion DB
+   - Rate limiting basique
+3. Créer styles SCSS :
+   - `app/styles/globals.scss`
+   - `app/styles/landing.module.scss`
+
+**Acceptance** :
+1. Visiter `http://localhost:3000`
+2. S'inscrire avec un email
+3. Vérifier dans Neon : email présent, status='active'
+4. Visiter `/unsubscribe`, vérifier status='unsubscribed'
+
+---
+
+### Phase 4 : Email React template ⚠️ **CONFLIT À RÉSOUDRE**
+
+**Objectif** : Template email stylé avec React Email + HMAC signed links.
+
+**Status** :
+- ✅ Templates React Email créés (`emails/`)
+- ✅ `lib/email.ts` version Claude Code (sans React Email, avec HMAC)
+- ⚠️ **Conflit** : 2 versions de `lib/email.ts`
+
+**Solution** : Merger les 2 versions
+- ✅ Garde React Email `render(<WeeklyBrief />)`
+- ✅ Garde HMAC `buildUnsubscribeUrl()` de Claude Code
+- ✅ Personnalise l'unsubscribe URL par destinataire
+
+**Tâches** :
+1. Créer `lib/email.merged.ts` qui combine :
+   - React Email rendering
+   - HMAC signed unsubscribe links
+   - Batching Resend
+2. Tester : `npm run email:dev` (preview)
+3. Tester : `npm run brief:dry` (envoi réel)
+
+**Code à implémenter** :
+
+```typescript
+// lib/email.ts (version finale mergée)
+import { Resend } from 'resend';
+import { render } from '@react-email/components';
+import { createHmac } from 'crypto';
+import WeeklyBrief from '../emails/weekly-brief';
+
+function buildUnsubscribeUrl(email: string): string {
+  const secret = process.env.UNSUBSCRIBE_SECRET!;
+  const token = createHmac('sha256', secret).update(email).digest('hex');
+  const baseUrl = process.env.SITE_URL || 'https://wwwatch.dev';
+  return `${baseUrl}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
+}
+
+export async function sendBriefToList(
+  emails: string[],
+  markdown: string,
+  subject: string
+): Promise<{ sent: number; failed: number }> {
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  let sent = 0, failed = 0;
+
+  for (let i = 0; i < emails.length; i += 100) {
+    const batch = emails.slice(i, i + 100);
+    try {
+      for (const email of batch) {
+        const html = render(
+          WeeklyBrief({
+            markdown,
+            unsubscribeUrl: buildUnsubscribeUrl(email),
+            previewText: subject,
+          })
+        );
+        await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL!,
+          to: email,
+          subject,
+          html,
+        });
+      }
+      sent += batch.length;
+    } catch (err) {
+      console.error(`[email] Batch failed:`, err);
+      failed += batch.length;
+    }
+  }
+  return { sent, failed };
+}
+```
+
+**Acceptance** :
+```bash
+npm run brief:dry
+# Vérifier dans inbox :
+# - Template stylé (React Email)
+# - Lien unsubscribe signé HMAC
+```
+
+---
+
+### Phase 5 : CI/CD GitHub Actions ❌ **PAS COMMENCÉ**
+
+**Objectif** : Automatiser l'envoi hebdomadaire.
+
+**Tâches** :
+1. Créer `.github/workflows/weekly-brief.yml`
+2. Cron : `0 6 * * 1` (lundi 6am UTC)
+3. Steps : checkout, setup Node, install, run brief
+4. Configurer secrets GitHub
+5. Tester trigger manuel
+
+**Acceptance** :
+- Déclencher manuellement
+- Vérifier logs : brief généré et envoyé
+- Vérifier inbox : email reçu
+
+---
+
+### Phase 6 : Deploy Vercel ❌ **PAS COMMENCÉ**
+
+**Objectif** : Déployer en production.
+
+**Tâches** :
+1. Connecter GitHub → Vercel
+2. Configurer env vars Vercel
+3. Configurer domaine `wwwatch.dev`
+4. Tester en prod
+
+**Acceptance** :
+- Visiter `https://wwwatch.dev`
+- S'inscrire
+- Recevoir le brief le lundi suivant
+
+---
+
+## Variables d'environnement
+
+### Development (`.env.local`)
+
 ```env
 # Anthropic
-ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
 
-# Neon DB
-DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
+# Neon
+DATABASE_URL=postgresql://user:pass@ep-xyz.us-east-2.aws.neon.tech/wwwatch?sslmode=require
 
 # Resend
-RESEND_API_KEY=re_...
+RESEND_API_KEY=re_xxxxx
 RESEND_FROM_EMAIL=brief@wwwatch.dev
 
-# Dry run
+# Site (pour unsubscribe links)
+SITE_URL=http://localhost:3000
+UNSUBSCRIBE_SECRET=généré_avec_openssl_rand_hex_32
+
+# Dry run test
 DRY_RUN_EMAIL=ton@email.com
 ```
 
-**Production (Vercel)** :
-- Mêmes vars sauf DRY_RUN_EMAIL
+### Production (Vercel)
 
-### 6. Coûts détaillés
+Mêmes variables (sauf `DRY_RUN_EMAIL`, remplacer `SITE_URL` par https://wwwatch.dev).
 
-Tableau avec breakdown :
+**Générer UNSUBSCRIBE_SECRET** :
+```bash
+openssl rand -hex 32
+```
 
-| Service | Free tier | Coût estimé | Notes |
-|---------|-----------|-------------|-------|
-| Claude Sonnet 4.6 | N/A | $6.76/an | 52 briefs × $0.13 |
-| Fallback collecteurs | N/A | $4.16/an | Si web_search fail |
-| Resend | 3000/mois | $0 | Largement suffisant |
-| Neon DB | 0.5GB | $0 | < 10k subscribers |
-| Vercel | Hobby plan | $0 | Static + API routes |
-| GitHub Actions | 2000 min/mois | $0 | Cron = ~5min/semaine |
-| **Total** | - | **$4-7/an** | Selon fallback usage |
+---
 
-**Scaling** :
-- 1k subscribers : $0/an (reste free tier)
-- 10k subscribers : $0/an (toujours free tier)
-- 100k subscribers : $19/mois Resend + $25/mois Neon = $528/an
+## Coûts détaillés
 
-### 7. Prompt Version B (résumé)
+### Breakdown annuel (52 briefs/an)
 
-Résumé en 1 paragraphe de la philosophie du prompt :
-- Structure guidée mais flexible
-- Recherche dynamique (pas de script fixe)
-- Adapte le contenu selon l'actu
-- Ton direct product engineer → product engineer
-- Anti-hallucination strict (URLs vérifiées)
-- Interdictions explicites (pas de meta-commentaires, liens cliquables)
+| Service | Free tier | Coût/an | Notes |
+|---------|-----------|---------|-------|
+| **Claude Sonnet 4.6** | N/A | $6.76 | 52 × $0.13/brief |
+| **Fallback collecteurs** | N/A | $4.16 | Si web_search timeout |
+| **Resend** | 3000/mois | $0 | < 100/semaine |
+| **Neon DB** | 0.5GB | $0 | < 10k subscribers |
+| **Vercel** | Hobby | $0 | Static + API |
+| **GitHub Actions** | 2000 min/mois | $0 | ~5 min/semaine |
+| **Domaine** | N/A | $12 | Google Domains |
+| **Total** | - | **$10-23** | Selon usage fallback |
 
-### 8. Système de fallback (résumé)
+### Scaling
 
-Résumé en 1 paragraphe :
-- web_search = méthode primaire (incrémental, adaptatif)
-- Fallback automatique vers collecteurs si timeout
-- 5 collecteurs : HN (Algolia), HF (Daily Papers), GitHub (Trending), arXiv, TLDR AI (scraping)
-- Fail-safe : si un collecteur échoue, les autres continuent
-- Flags CLI : --websearch (force), --direct (skip web_search)
+**1k subscribers** : $10-23/an  
+**10k subscribers** : $10-23/an  
+**100k subscribers** : $550-563/an (Resend Pro + Neon Scale)
 
-### 9. Décisions techniques clés
+---
 
-Liste des décisions importantes avec justifications courtes :
+## Prompt Version B
 
-**Neon vs Supabase** :
-- Neon choisi car drop-in Postgres, free tier 0.5GB
-- Supabase épuisé (limite projets gratuits)
+### Philosophie
 
-**Claude Sonnet vs Opus** :
-- Sonnet = $0.13/brief vs Opus $0.21/brief
-- 40% moins cher, qualité suffisante pour MVP
+**Structure guidée** avec flexibilité adaptative.
 
-**React Email vs HTML custom** :
-- React Email = code maintenable, preview en dev
-- Compile vers HTML inline automatiquement
+**Principes** :
+1. Recherche dynamique (10-20 searches, pas de script fixe)
+2. Structure suggérée mais adaptable (skip sections si vide)
+3. Ton explicite (exemples ✓ bon vs ✗ mauvais)
+4. Anti-hallucination strict (URLs vérifiées)
+5. Interdictions claires (max 2× "Pourquoi ça compte", liens cliquables)
 
-**Resend vs SendGrid** :
-- Resend = meilleure DX, support React Email natif
-- Free tier 3000/mois vs SendGrid 100/jour
+**Fichier** : `lib/prompt.ts`
 
-### 10. Contraintes et limitations MVP
+---
 
-**Ce qui est inclus dans le MVP** :
-- Brief hebdo product engineers uniquement
-- 1 template email fixe
-- Subscribe/unsubscribe basique
-- Génération automatique chaque lundi
+## Système de fallback
 
-**Ce qui est hors scope MVP** :
-- Multi-profils (Instagram creator, backend engineer, etc.)
-- Personnalisation par user
-- Analytics détaillées (open rate, click rate)
-- Interface admin pour éditer les briefs
-- Archive web des anciens briefs
-- Recommandations personnalisées
+### Architecture
 
-**Post-MVP** (v2) :
-- Multi-profils dynamiques
-- User preferences (fréquence, catégories)
-- Archive searchable sur le site
-- Metrics dashboard
-- Monétisation (sponsoring, tier payant)
+**PRIMARY** : Claude + web_search (adaptatif)  
+**FALLBACK** : Collecteurs RSS/API (fiable 100%)
 
-### 11. Testing strategy
+### Collecteurs
 
-**Testing manuel** :
-- Phase 2 : générer 2-3 briefs, valider qualité/ton
-- Phase 3 : tester subscribe/unsubscribe flow
+1. **Hacker News** (Algolia) : Top AI stories > 50 points
+2. **Hugging Face** : Daily Papers API
+3. **GitHub** : Trending AI repos
+4. **arXiv** : cs.AI papers
+5. **TLDR AI** : Scraping (bonus)
+
+### Flags CLI
+
+```bash
+npm run brief:dry              # Auto (web_search + fallback)
+npm run brief:dry -- --websearch  # Force web_search
+npm run brief:dry -- --direct     # Force collecteurs
+```
+
+**Doc** : `FALLBACK_IMPLEMENTATION.md`
+
+---
+
+## Décisions techniques
+
+### Neon vs Supabase
+✅ Neon : free 0.5GB, drop-in Postgres, serverless
+
+### Sonnet 4.6 vs Opus 4.7
+✅ Sonnet : $0.13 vs $0.21 (40% moins cher), qualité suffisante
+
+### React Email vs HTML custom
+✅ React Email : maintenable, preview dev, compile inline auto
+
+### Resend vs SendGrid
+✅ Resend : free 3000/mois, meilleure DX, support React Email
+
+---
+
+## Contraintes MVP
+
+### Inclus
+✅ Brief hebdo product engineers  
+✅ Template email fixe  
+✅ Subscribe/unsubscribe  
+✅ Génération auto (cron)  
+✅ Système fallback  
+
+### Hors scope MVP
+❌ Multi-profils  
+❌ Personnalisation user  
+❌ Analytics détaillées  
+❌ Interface admin  
+❌ Archive web  
+
+---
+
+## Testing strategy
+
+### Manuel (MVP)
+- Phase 2 : valider 2-3 briefs générés
+- Phase 3 : tester subscribe/unsubscribe
 - Phase 5 : déclencher cron manuellement
 
-**Testing automatisé** (post-MVP) :
-- Unit tests : lib/research.ts, lib/db.ts
+### Automatisé (post-MVP)
+- Unit tests : `lib/research.ts`, `lib/db.ts`
 - Integration tests : API routes
-- E2E tests : subscribe flow
-
-### 12. Monitoring et observabilité
-
-**MVP** :
-- Logs Vercel (API routes, cron)
-- Logs GitHub Actions (cron execution)
-- Resend dashboard (delivery, bounces)
-
-**Post-MVP** :
-- Sentry pour error tracking
-- PostHog pour product analytics
-- Mixpanel pour email engagement
-
-### 13. Prochaines étapes immédiates
-
-Liste les 3 prochaines actions concrètes :
-
-1. **Implémenter lib/research.ts** :
-   - Fonction generateBriefMarkdown()
-   - Appel Claude API avec web_search tool
-   - Utiliser buildPrompt() de lib/prompt.ts
-   - Gestion d'erreur et timeout
-
-2. **Implémenter lib/db.ts** :
-   - Connexion Neon via @neondatabase/serverless
-   - Fonctions : getActiveSubscribers(), logBrief(), addSubscriber()
-   - Error handling avec try/catch
-
-3. **Créer scripts/brief.ts** :
-   - CLI orchestrator avec args --dry, --websearch, --direct
-   - Appelle generateBriefMarkdown()
-   - Appelle sendBriefToList()
-   - Logs clairs pour debug
-
-### 14. Références et ressources
-
-Liste des docs utiles :
-- Next.js 16 docs : https://nextjs.org/docs
-- React Email docs : https://react.email/docs
-- Neon docs : https://neon.tech/docs
-- Anthropic API docs : https://docs.anthropic.com
-- Resend docs : https://resend.com/docs
+- E2E tests : Playwright
 
 ---
 
-## Format du document PLAN_2.md
+## Monitoring et observabilité
 
-Structure markdown propre avec :
-- Table des matières en haut
-- Headers hiérarchisés (# ## ###)
-- Code blocks avec syntax highlighting
-- Tables markdown pour les comparaisons
-- Diagrammes ASCII art pour les flows
-- Emojis pour les sections (📦 🚀 ⚠️ ✅)
+### MVP (gratuit)
+- Logs Vercel (API routes)
+- Logs GitHub Actions (cron)
+- Resend Dashboard (delivery rate)
 
----
-
-## Ton du document
-
-- **Précis** : specs claires, pas d'ambiguïté
-- **Actionnable** : chaque phase a des critères d'acceptance
-- **Pragmatique** : focus sur le MVP, pas de over-engineering
-- **Pédagogique** : explique les décisions techniques
+### Post-MVP (payant)
+- Sentry : error tracking
+- PostHog : product analytics
+- Mixpanel : email engagement
 
 ---
 
-Crée maintenant PLAN_2.md en suivant cette structure.
+## Prochaines étapes immédiates
+
+### 1. Merger `lib/email.ts` (React Email + HMAC)
+
+**Priorité : CRITIQUE**
+
+Créer la version finale qui combine :
+- React Email `render(<WeeklyBrief />)`
+- HMAC `buildUnsubscribeUrl(email)`
+- Code fourni dans Phase 4 ci-dessus
+
+**Test** :
+```bash
+npm run brief:dry
+```
+
+---
+
+### 2. Créer `schema.sql` et exécuter sur Neon
+
+**Fichier** : voir section Schéma de base de données
+
+**Steps** :
+1. Copier le SQL
+2. Ouvrir Neon console
+3. Exécuter le schéma SQL
+4. Vérifier : `SELECT * FROM subscribers`
+
+---
+
+### 3. Créer `scripts/brief.ts`
+
+**Responsabilités** :
+- CLI avec flags `--dry`, `--websearch`, `--direct`
+- Appelle `generateBriefMarkdown()`
+- Save markdown dans `out/`
+- Appelle `sendBriefToList()`
+
+**Test** :
+```bash
+npm run brief:dry
+```
+
+---
+
+## Références et ressources
+
+- **Next.js 16** : https://nextjs.org/docs
+- **React Email** : https://react.email/docs
+- **Neon** : https://neon.tech/docs
+- **Anthropic** : https://docs.anthropic.com
+- **Resend** : https://resend.com/docs
+- **Vercel** : https://vercel.com/docs
+
+---
+
+## Changelog
+
+**v2.1** (20 mai 2026) :
+- ✅ Intégration contributions Claude Code (research.ts, db.ts, unsubscribe)
+- ⚠️ Conflit lib/email.ts identifié (React Email vs marked)
+- 📋 Phases mises à jour avec status réel
+
+**v2.0** (20 mai 2026) :
+- ✅ Migration React Email
+- ✅ Prompt Version B
+- ✅ Système fallback documenté
+
+**v1.0** (13 mai 2026) :
+- 📝 Plan initial
