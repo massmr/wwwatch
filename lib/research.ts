@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { buildPrompt } from './prompt';
 
-const MODEL = 'claude-opus-4-6';
+const MODEL = 'claude-sonnet-4-6';
 const MAX_RETRIES = 2;
 
 // At module scope — type alias used in the response parsing below.

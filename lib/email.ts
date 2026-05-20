@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 import { Resend } from 'resend';
 import { marked } from 'marked';
 
@@ -10,8 +12,17 @@ const C_HR = '#eee';         // hr and footer border
 const C_CODE_BG = '#f4f4f4'; // inline code background
 const C_FOOTER = '#888';     // footer text
 
-async function renderHtml(markdown: string, subject: string): Promise<string> {
-  const body = await marked.parse(markdown, { gfm: true });
+/** Generates a signed unsubscribe URL. Token = HMAC-SHA256(email, secret). */
+function buildUnsubscribeUrl(email: string): string {
+  const siteUrl = process.env.SITE_URL ?? 'https://wwwatch.vercel.app';
+  const secret = process.env.UNSUBSCRIBE_SECRET ?? '';
+  const token = createHmac('sha256', secret).update(email).digest('hex');
+  return `${siteUrl}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
+}
+
+/** Renders the email HTML. Accepts pre-parsed body to avoid re-parsing per recipient. */
+function renderHtml(body: string, subject: string, recipientEmail: string): string {
+  const unsubscribeUrl = buildUnsubscribeUrl(recipientEmail);
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
 <title>${subject}</title>
 <style>
@@ -28,7 +39,7 @@ async function renderHtml(markdown: string, subject: string): Promise<string> {
 </style></head><body>
 ${body}
 <div class="footer">wwwatch — veille IA hebdo pour product engineers.<br>
-Pour te désinscrire, réponds "stop".</div>
+<a href="${unsubscribeUrl}" style="color:${C_FOOTER}">Se désinscrire</a></div>
 </body></html>`;
 }
 
@@ -47,13 +58,15 @@ export async function sendBriefToList(
   const replyTo = process.env.EMAIL_REPLY_TO;
 
   const resend = new Resend(apiKey);
-  const html = await renderHtml(markdown, subject);
+  // Parse markdown once — body HTML is identical for all recipients.
+  const body = await marked.parse(markdown, { gfm: true });
 
   let sent = 0;
   let failed = 0;
 
   for (const to of emails) {
     try {
+      const html = renderHtml(body, subject, to);
       const { error } = await resend.emails.send({
         from,
         to,

@@ -33,6 +33,16 @@ type LogBriefOpts = {
   recipientCount: number;
 };
 
+/** Sets a subscriber's status to 'unsubscribed'. No-ops if email not found. */
+export async function deactivateSubscriber(email: string): Promise<void> {
+  const sql = getSql();
+  await sql`
+    UPDATE public.subscribers
+    SET status = 'unsubscribed', unsubscribed_at = now()
+    WHERE email = ${email}
+  `;
+}
+
 /** Logs a sent brief to the DB. Swallows errors to avoid blocking the send. */
 export async function logBrief(opts: LogBriefOpts): Promise<void> {
   const sql = getSql();
