@@ -280,7 +280,7 @@ app/                  ← routes Next.js + composants spécifiques aux pages
 components/           ← composants réutilisables (Button, Input, Card...)
 lib/                  ← logique métier, intégrations externes (Supabase, Resend, Anthropic)
 scripts/              ← entrypoints CLI (brief.ts) lancés par GH Actions
-supabase/             ← schema SQL, migrations
+neon/                 ← schema SQL, migrations
 ```
 
 - `components/` est pour le **réutilisable**. Si un composant n'est utilisé
@@ -371,7 +371,8 @@ supabase/             ← schema SQL, migrations
 ## Variables d'environnement
 
 - **`NEXT_PUBLIC_*`** : exposé au browser. **Uniquement** des trucs non
-  sensibles (URL Supabase, anon key publique).
+  sensibles (URL publique, clé publique). `DATABASE_URL` ne sera jamais
+  `NEXT_PUBLIC_`.
 - **Tout le reste** : **jamais** importé dans un Client Component, jamais
   préfixé `NEXT_PUBLIC_`.
 - Au démarrage du script ou du serveur, **fail fast** si une var requise
@@ -386,29 +387,30 @@ supabase/             ← schema SQL, migrations
 
 ---
 
-## Supabase / base de données
+## Neon / base de données
 
-- Toutes les requêtes serveur passent par le client `service_role`,
-  **jamais** par `anon`. (Au MVP on n'a pas d'auth utilisateur.)
-- Toutes les requêtes gèrent `error` :
+- Accès DB via `getSql()` dans `lib/db.ts` (client `@neondatabase/serverless`).
+  `DATABASE_URL` est une var serveur uniquement — jamais préfixée `NEXT_PUBLIC_`.
+- Toutes les requêtes utilisent les **tagged template literals** Neon :
   ```ts
-  const { data, error } = await supabase.from('x').select();
-  if (error) throw error;
+  const sql = getSql();
+  const rows = await sql`SELECT * FROM subscribers WHERE status = ${'active'}`;
   ```
-- Pas de SQL brut concaténé avec des inputs utilisateur. Le SDK Supabase
-  paramétrise automatiquement, ne pas court-circuiter.
+  Les paramètres sont automatiquement échappés — ne jamais interpoler des
+  strings directement dans la requête.
+- Pas de SQL brut concaténé avec des inputs utilisateur.
 - Migrations : tout changement de schéma passe par un fichier dans
-  `supabase/` versionné. Pas de "j'ai cliqué dans l'UI Supabase". Si on
+  `neon/` versionné. Pas de "j'ai cliqué dans la console Neon". Si on
   doit reconstruire la DB, le SQL est la source de vérité.
-- RLS activée sur toutes les tables exposées. Pas de policy publique
-  pour ce MVP (tout passe par service_role côté serveur).
+- Pas de RLS au MVP (Neon n'a pas de service_role distinct). L'accès
+  est contrôlé uniquement par le fait que `DATABASE_URL` est côté serveur.
 
 ---
 
 ## Appels LLM (Anthropic)
 
-- **Modèle pinné** : `claude-opus-4-7`. Ne pas changer sans validation.
-  Les évals de prompt ne sont pas portables entre modèles.
+- **Modèle pinné** : `claude-sonnet-4-6`. Validé après test de coût (Opus à $12/run, Sonnet ~$0.60/run).
+  Ne pas changer sans validation. Les évals de prompt ne sont pas portables entre modèles.
 - **Tool web_search** : version `web_search_20260209`. La version est dans
   le contrat. Ne pas downgrade.
 - **Logguer les usages** : tokens in/out, durée, succès/échec. Permet de

@@ -7,5 +7,5 @@ Avant toute action significative, lis :
 Ces deux fichiers sont la source de vérité. En cas de conflit,
 CONVENTIONS.md gagne.
 
-Avant toute action, lis PLAN.md et CONVENTIONS.md.
+Entre chaque phase du plan, lis PLAN.md et CONVENTIONS.md.
    Après chaque batch de modifications, invoque @code-reviewer.
