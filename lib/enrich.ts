@@ -156,10 +156,43 @@ async function fetchWebPage(url: string): Promise<SourceMaterial | null> {
   }
 }
 
+// ─── URL guards ───────────────────────────────────────────────────────────────
+
+// Image file extensions — fetching these yields binary, not text.
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|svg|ico)(\?.*)?$/i;
+
+// Domains that require JavaScript or a login to render content.
+const JS_ONLY_DOMAINS = ['twitter.com', 'x.com', 't.co'];
+
+function isUnfetchableUrl(url: string): boolean {
+  if (IMAGE_EXT_RE.test(url)) return true;
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    return JS_ONLY_DOMAINS.includes(host);
+  } catch {
+    return false;
+  }
+}
+
+// i.redd.it/* URLs are always Reddit-hosted images.
+function isRedditImage(url: string): boolean {
+  try {
+    return new URL(url).hostname === 'i.redd.it';
+  } catch {
+    return false;
+  }
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
 async function fetchSourceMaterial(item: ScoredItem): Promise<SourceMaterial | null> {
   const { url, source, description } = item;
+
+  // Drop known-unfetchable URLs upfront (images, JS-only pages).
+  if (isUnfetchableUrl(url) || isRedditImage(url)) {
+    console.error(`[enrich] dropped: unfetchable URL (image or JS-only) — "${url}"`);
+    return null;
+  }
 
   // Primary RSS: the feed description is already authoritative content.
   if (PRIMARY_RSS_PREFIXES.some((p) => source.startsWith(p))) {
@@ -181,7 +214,7 @@ async function fetchSourceMaterial(item: ScoredItem): Promise<SourceMaterial | n
     return fetchArxivAbstract(url);
   }
 
-  // Everything else (HN, Reddit, etc.): fetch the linked page.
+  // Everything else (HN, Reddit link posts, etc.): fetch the linked page.
   return fetchWebPage(url);
 }
 

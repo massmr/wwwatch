@@ -170,6 +170,16 @@ async function writeArticle(
     return { article: null, inputTokens, outputTokens };
   }
 
+  // Guard: model produced a meta-article about its own inability to write
+  // (e.g. "Source Unavailable", "Article Could Not Be Generated").
+  // These happen when source content was binary or JS-gated — the item should
+  // have been dropped in enrich, but if it slips through, don't store it.
+  const META_ARTICLE_SLUG_RE = /unavailable|unreadable|could.not|no.content|no.article/i;
+  if (META_ARTICLE_SLUG_RE.test(slug) || META_ARTICLE_SLUG_RE.test(bodyMd.slice(0, 200))) {
+    console.error(`[writer] meta-article detected and rejected for "${item.title.slice(0, 60)}"`);
+    return { article: null, inputTokens, outputTokens };
+  }
+
   const article: NewArticle = {
     day,
     slug,
