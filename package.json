@@ -19,7 +19,7 @@
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.0.8",
     "marked": "^15.0.0",
-    "next": "16.0.0",
+    "next": "16.2.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "resend": "^4.0.0",
