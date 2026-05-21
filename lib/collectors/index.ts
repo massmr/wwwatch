@@ -1,8 +1,8 @@
 import { collectHackerNews } from './hacker-news';
 import { collectGithub } from './github';
 import { collectHuggingFace } from './hugging-face';
-import { collectReddit } from './reddit';
 import { collectRss } from './rss';
+// Reddit is currently unplugged — see FUTURE.md for reactivation notes.
 import type { RawItem } from './types';
 
 export type { RawItem } from './types';
@@ -14,7 +14,6 @@ const COLLECTORS: Array<{ name: string; fn: Collector }> = [
   { name: 'hacker_news', fn: collectHackerNews },
   { name: 'github', fn: collectGithub },
   { name: 'hugging_face', fn: collectHuggingFace },
-  { name: 'reddit', fn: collectReddit },
   { name: 'rss', fn: collectRss },
 ];
 
