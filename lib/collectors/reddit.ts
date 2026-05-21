@@ -18,6 +18,8 @@ type RedditPost = {
     name: string;       // e.g. 't3_abc123'
     title: string;
     url: string;
+    // Set by Reddit when the destination URL differs from the submitted URL.
+    url_overridden_by_dest?: string;
     score: number;
     num_comments: number;
     created_utc: number; // Unix timestamp
@@ -82,17 +84,20 @@ export async function collectReddit(): Promise<RawItem[]> {
       const post = child.data;
       if (post.score < MIN_SCORE) continue;
 
-      // Self-posts are discussions — no external URL to fetch, cannot be enriched.
-      // Only link posts (which point to an external article, paper, or announcement)
-      // are useful for the pipeline.
+      // Self-posts are discussions with no outbound link to fetch.
       if (post.is_self) continue;
+
+      // Prefer url_overridden_by_dest when Reddit resolves the canonical destination.
+      const outboundUrl = post.url_overridden_by_dest ?? post.url;
+      const discoveryUrl = `https://reddit.com${post.permalink}`;
 
       items.push({
         id: `reddit_${post.id}`,
         source: `reddit_${subreddit.toLowerCase()}`,
         title: post.title,
-        url: post.url,
+        url: outboundUrl,
         description: null,
+        discovery_url: discoveryUrl,
         published_at: new Date(post.created_utc * 1000).toISOString(),
         upvotes: post.score,
         comments: post.num_comments,

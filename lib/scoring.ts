@@ -23,7 +23,8 @@ const AUTHORITY: Record<string, number> = {
 function getAuthority(source: string): number {
   if (source in AUTHORITY) return AUTHORITY[source]!;
   if (source.startsWith('rss_')) return 0.75;
-  if (source.startsWith('reddit_')) return 0.4;
+  // Reddit downweighted to discovery tier (mostly memes/discussions)
+  if (source.startsWith('reddit_')) return 0.35;
   return 0.4;
 }
 

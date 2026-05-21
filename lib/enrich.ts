@@ -156,29 +156,30 @@ async function fetchWebPage(url: string): Promise<SourceMaterial | null> {
   }
 }
 
-// ─── URL guards ───────────────────────────────────────────────────────────────
+// ─── URL guard ────────────────────────────────────────────────────────────────
 
-// Image file extensions — fetching these yields binary, not text.
-const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|svg|ico)(\?.*)?$/i;
+// Aggregator/social/media hosts that are not fetchable primary sources.
+// Reddit self-posts and image posts will have URLs matching these hosts.
+const NON_SOURCE_HOSTS = new Set([
+  'reddit.com', 'www.reddit.com', 'redd.it', 'i.redd.it', 'v.redd.it',
+  'news.ycombinator.com',
+  'x.com', 'twitter.com', 't.co',
+]);
 
-// Domains that require JavaScript or a login to render content.
-const JS_ONLY_DOMAINS = ['twitter.com', 'x.com', 't.co'];
+const NON_SOURCE_EXT_RE = /\.(jpe?g|png|gif|webp|mp4|mov)(\?.*)?$/i;
 
-function isUnfetchableUrl(url: string): boolean {
-  if (IMAGE_EXT_RE.test(url)) return true;
+/**
+ * Returns true if the URL points to a fetchable primary source.
+ * Rejects aggregator pages, social media, and binary media files.
+ * Exported for isolated testing.
+ */
+export function isFetchableSourceUrl(url: string): boolean {
+  if (NON_SOURCE_EXT_RE.test(url)) return false;
   try {
-    const host = new URL(url).hostname.replace(/^www\./, '');
-    return JS_ONLY_DOMAINS.includes(host);
+    const host = new URL(url).hostname.toLowerCase();
+    return !NON_SOURCE_HOSTS.has(host);
   } catch {
-    return false;
-  }
-}
-
-// i.redd.it/* URLs are always Reddit-hosted images.
-function isRedditImage(url: string): boolean {
-  try {
-    return new URL(url).hostname === 'i.redd.it';
-  } catch {
+    // new URL() throws on malformed URLs — treat as non-fetchable.
     return false;
   }
 }
@@ -188,9 +189,9 @@ function isRedditImage(url: string): boolean {
 async function fetchSourceMaterial(item: ScoredItem): Promise<SourceMaterial | null> {
   const { url, source, description } = item;
 
-  // Drop known-unfetchable URLs upfront (images, JS-only pages).
-  if (isUnfetchableUrl(url) || isRedditImage(url)) {
-    console.error(`[enrich] dropped: unfetchable URL (image or JS-only) — "${url}"`);
+  // Drop aggregator/social/media URLs upfront: not fetchable primary sources.
+  if (!isFetchableSourceUrl(url)) {
+    console.error(`[enrich] dropped: non-source URL (aggregator or media): "${url}"`);
     return null;
   }
 
@@ -215,7 +216,13 @@ async function fetchSourceMaterial(item: ScoredItem): Promise<SourceMaterial | n
   }
 
   // Everything else (HN, Reddit link posts, etc.): fetch the linked page.
-  return fetchWebPage(url);
+  const material = await fetchWebPage(url);
+  if (!material) return null;
+  // Append discovery_url (e.g. Reddit thread permalink) as secondary source.
+  if (item.discovery_url) {
+    return { ...material, urls: [...material.urls, item.discovery_url] };
+  }
+  return material;
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────

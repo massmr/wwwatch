@@ -19,6 +19,12 @@ export type RawItem = {
   score?: number | null;
   /** Normalised title for intra-run and cross-day dedup. See normalizeFingerprint. */
   fingerprint: string;
+  /**
+   * The aggregator permalink where the story was discovered (e.g. Reddit thread URL).
+   * Set by collectors that have a separate outbound URL and a discovery page.
+   * Used as a secondary source citation; never the primary fetch target.
+   */
+  discovery_url?: string;
 };
 
 const STOP_WORDS = new Set([
