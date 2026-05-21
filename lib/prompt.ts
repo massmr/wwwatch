@@ -27,14 +27,15 @@ KEEP items like:
 - a security incident in infrastructure many builders depend on
 - a funding, IPO, or acquisition event for a vendor builders rely on
 - a new evaluation or benchmark that changes how you compare tools
-- a genuine, substantive point of view on building with agents
+- a substantive analysis or argument about HOW to build with agents (architecture, evals, failure modes), even with no product release attached. This is the differentiation wwwatch is built on, not filler.
 
 DROP items like:
 - a routine patch, hotfix, or alpha release of a niche repository
 - a changelog whose headline is "fixes crashes" or "bug fixes"
 - a tool outside the reader's ecosystem, or in a language/platform they do not use
 - a popular repository with no actual event this week
-- memes, screenshots, opinions with no concrete development
+- memes, screenshots, or a hot take / prediction / reaction with no technical substance (a tweet-length opinion, a "what this means for AGI" piece)
+- a discussion thread ABOUT an article (keep the source article, drop the thread)
 
 Select AT MOST 8. Select FEWER if fewer genuinely qualify. Never pad the list to reach
 a number. A short, true edition beats a padded one.
