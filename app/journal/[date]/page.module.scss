@@ -1,0 +1,108 @@
+@use '../../_styles/mixins' as mq;
+
+.page {
+  padding: var(--space-12) var(--space-4);
+}
+
+.container {
+  max-width: var(--wide-width);
+  margin: 0 auto;
+}
+
+.back {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  text-decoration: none;
+  display: inline-block;
+  margin-bottom: var(--space-6);
+
+  &:hover {
+    color: var(--color-fg);
+  }
+}
+
+.date {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-3);
+}
+
+.intro {
+  font-size: var(--text-lg);
+  line-height: 1.7;
+  color: var(--color-fg);
+  margin-bottom: var(--space-12);
+  max-width: var(--content-width);
+}
+
+.draft-banner {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-warning-fg);
+  margin-bottom: var(--space-8);
+}
+
+.articles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.article-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  text-decoration: none;
+  color: var(--color-fg);
+  display: block;
+  transition: border-color 0.1s;
+
+  &:hover {
+    border-color: var(--color-accent);
+  }
+
+  @include mq.tablet {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: var(--space-5);
+    align-items: start;
+  }
+}
+
+.article-cat {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  letter-spacing: 0.03em;
+  margin-bottom: var(--space-2);
+
+  @include mq.tablet {
+    margin-bottom: 0;
+    // var(--space-1) = 0.25rem ≈ 4px — nudges baseline to align with card title.
+    padding-top: var(--space-1);
+  }
+}
+
+.article-content {
+  min-width: 0;
+}
+
+.article-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: var(--space-2);
+}
+
+.article-summary {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  line-height: 1.5;
+  margin: 0;
+}

@@ -1,0 +1,103 @@
+@use '../../../_styles/mixins' as mq;
+
+.page {
+  padding: var(--space-12) var(--space-4);
+}
+
+.container {
+  max-width: var(--content-width);
+  margin: 0 auto;
+}
+
+.back {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  text-decoration: none;
+  display: inline-block;
+  margin-bottom: var(--space-6);
+
+  &:hover {
+    color: var(--color-fg);
+  }
+}
+
+.meta {
+  margin-bottom: var(--space-8);
+}
+
+.date {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-2);
+}
+
+.category {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  letter-spacing: 0.03em;
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: var(--space-4);
+
+  @include mq.tablet {
+    font-size: var(--text-4xl);
+  }
+}
+
+.summary {
+  font-size: var(--text-lg);
+  color: var(--color-muted);
+  line-height: 1.6;
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-8);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.body {
+  margin-bottom: var(--space-12);
+}
+
+.sources {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-6);
+  margin-top: var(--space-8);
+}
+
+.sources-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-3);
+}
+
+.sources-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.source-link {
+  font-size: var(--text-sm);
+  color: var(--color-accent);
+  text-decoration: none;
+  word-break: break-all;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

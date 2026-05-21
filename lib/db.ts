@@ -80,10 +80,30 @@ export type NewArticle = {
 // All casts below are safe as long as the DB schema in neon/0002_pipeline.sql
 // is the authoritative source and is only modified via versioned migrations.
 // The `sources` field is jsonb — Neon deserialises it to a JS object automatically.
+//
+// NOTE: PostgreSQL `date` columns are returned as JavaScript Date objects by the
+// Neon HTTP driver. toDateString() normalises them to YYYY-MM-DD strings so they
+// are safe to use in URLs and comparisons.
+
+function toDateString(v: unknown): string {
+  if (v instanceof Date) {
+    // Neon creates the JS Date at LOCAL midnight for PostgreSQL `date` columns
+    // (e.g. "Thu May 21 2026 00:00:00 GMT+0200"). toISOString() would give the
+    // UTC equivalent ("2026-05-20T22:00:00Z") and slice off the wrong day.
+    // Local getters return the calendar date the DB actually stored.
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, '0');
+    const d = String(v.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  // Handles ISO strings like "2026-05-21T00:00:00.000Z".
+  if (typeof v === 'string') return v.slice(0, 10);
+  return String(v);
+}
 
 function toEdition(r: Record<string, unknown>): Edition {
   return {
-    day: r['day'] as string,
+    day: toDateString(r['day']),
     lang: r['lang'] as string,
     intro_md: r['intro_md'] as string,
     status: r['status'] as EditionStatus,
@@ -96,7 +116,7 @@ function toEdition(r: Record<string, unknown>): Edition {
 function toArticle(r: Record<string, unknown>): Article {
   return {
     id: r['id'] as string,
-    day: r['day'] as string,
+    day: toDateString(r['day']),
     lang: r['lang'] as string,
     slug: r['slug'] as string,
     title: r['title'] as string,

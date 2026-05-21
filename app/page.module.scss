@@ -1,16 +1,19 @@
 @use './_styles/mixins' as mq;
 
-.main {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: var(--space-12) var(--space-4);
+.page {
+  padding: var(--space-12) var(--space-4) 0;
 }
 
 .container {
-  width: 100%;
-  max-width: 640px;
+  max-width: var(--content-width);
+  margin: 0 auto;
+}
+
+/* ─── Hero ────────────────────────────────────────────────────────────────── */
+
+.hero {
+  padding-bottom: var(--space-12);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .badge {
@@ -50,42 +53,83 @@
   color: var(--color-muted);
   line-height: 1.6;
   margin-bottom: var(--space-8);
+  max-width: 560px;
 }
 
-.cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
-  margin-top: var(--space-12);
+/* ─── Latest edition preview ──────────────────────────────────────────────── */
 
-  @include mq.desktop {
-    grid-template-columns: repeat(3, 1fr);
+.preview {
+  padding: var(--space-12) 0;
+}
+
+.preview-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.preview-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.preview-date {
+  font-size: var(--text-sm);
+  color: var(--color-accent);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 
-.card {
-  background: var(--color-card-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-  line-height: 1.5;
-}
-
-.card-title {
-  font-weight: 600;
+.preview-intro {
+  font-size: var(--text-base);
+  line-height: 1.7;
   color: var(--color-fg);
-  margin-bottom: var(--space-2);
+  margin: 0 0 var(--space-6);
 }
 
-.card-body {
-  margin: 0;
+.preview-articles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.footer {
-  margin-top: var(--space-12);
+.preview-article {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  text-decoration: none;
+  color: var(--color-fg);
+
+  &:hover .preview-article-title {
+    color: var(--color-accent);
+  }
+}
+
+.preview-article-cat {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  color: var(--color-muted);
+  flex-shrink: 0;
+  width: 90px;
+}
+
+.preview-article-title {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  transition: color 0.1s;
+}
+
+/* ─── No-editions state ───────────────────────────────────────────────────── */
+
+.coming-soon {
+  padding: var(--space-12) 0;
+  font-size: var(--text-sm);
   color: var(--color-muted);
 }

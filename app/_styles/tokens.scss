@@ -26,6 +26,15 @@
                "Helvetica Neue", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 
+  --color-code-bg: #f4f4f2;     /* inline code + pre background */
+  --color-warning-bg: #fff9e6;  /* draft banner */
+  --color-warning-border: #f0c040;
+  --color-warning-fg: #7a5c00;
+
+  /* Layout */
+  --content-width: 720px;   /* reading column (articles) */
+  --wide-width: 1080px;     /* wide containers (nav, archive) */
+
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;

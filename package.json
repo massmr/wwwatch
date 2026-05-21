@@ -23,12 +23,14 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "resend": "^4.0.0",
-    "rss-parser": "^3.13.0"
+    "rss-parser": "^3.13.0",
+    "sanitize-html": "^2.13.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/sanitize-html": "^2.16.1",
     "react-email": "^6.1.5",
     "sass": "^1.77.0",
     "tsx": "^4.16.0",

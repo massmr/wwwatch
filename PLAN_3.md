@@ -1,9 +1,18 @@
 # PLAN_3.md — wwwatch Daily Pipeline
 
-**Version:** 3.0
+**Version:** 3.1
 **Date:** 21 mai 2026
 **Remplace:** la génération à la volée (`lib/research.ts` + web_search dans le serveur Next)
 **À lire avec:** CONVENTIONS.md (priorité en cas de conflit)
+
+> **v3.1 — corrections issues du premier dry-run (5 articles).** Quatre fixes intégrés
+> aux étapes 2 à 5, marqués « Correction v3.1 » dans le texte. Résumé : (1) le writer
+> n'écrit plus que depuis le contenu source réellement récupéré, interdiction de combler ;
+> (2) le scoring privilégie la fraîcheur événementielle sur la popularité brute ;
+> (3) l'intro du jour est générée en dernier, depuis les summaries finaux ;
+> (4) la QA trace chaque détail factuel à une source. Détail factuel des specs vérifié OK
+> au dry-run (Ollama 172K, Qwen 3.6 SWE-bench 77.2, Kimi K2.6) — le problème n'était pas
+> les specs mais le comblement de détails quand la source est vague.
 
 ---
 
@@ -237,21 +246,54 @@ Sortie : 100-200 `RawItem`. Chaque échec est loggué `[collectors] <source> fai
 
 ### Étape 2 — Dédup + scoring (`lib/scoring.ts`)
 
+> **Correction v3.1 (dry-run du 21 mai).** Le premier dry-run a remonté 4 repos GitHub
+> sur 5 (OpenHands, nanobot, browser-use…) — populaires mais **pas des news**. Le
+> scoring sur-pondérait la popularité brute (étoiles) au détriment de la fraîcheur
+> événementielle. On corrige la pondération ci-dessous.
+
 1. **Fingerprint** : titre normalisé (lowercase, sans ponctuation, sans stop-words). Sert au dédup intra-run ET inter-jours (ne pas réécrire la même histoire demain).
 2. **Dédup** par URL exacte + par fingerprint similaire (même lancement sur HN + Reddit + blog = 1 sujet).
-3. **Score** = `engagement·0.4 + freshness·0.3 + authority·0.2 + keywords·0.1`, puis **×1,5 si cross-source** (rôle 3). Détail de la formule : voir SOURCES_PIPELINE.md.
+3. **Score** = `event_freshness·0.45 + authority·0.25 + engagement·0.20 + keywords·0.10`, puis **×1,5 si cross-source** (rôle 3).
+   - `event_freshness` n'est PAS « date de création du repo ». C'est « y a-t-il un **événement daté** dans la fenêtre 7 jours ? » : release/version, levée, incident, breaking change, annonce. Un repo établi sans événement récent score bas, même à 100K étoiles.
+   - `engagement` (étoiles absolues, points HN) est **plafonné** (`log` ou cap) pour qu'un repo très populaire mais statique ne domine pas un vrai scoop moins étoilé.
+   - Heuristique anti-« fiche produit » : si l'item est un repo GitHub **sans** `stars_today`/release récente détectable, pénalité (il est probablement « populaire » mais pas « nouveau »).
 4. Garder le top 15-20.
+
+Le gabarit cible = l'article « OpenAI disproves conjecture » du dry-run : un **événement daté** avec un angle, pas une présentation de projet. Détail de la formule : voir SOURCES_PIPELINE.md.
 
 Persister les `raw_items` scorés (audit/dédup futur).
 
-### Étape 3 — Enrichissement sélectif (`lib/enrich.ts`)
+### Étape 3 — Enrichissement & récupération du contenu (`lib/enrich.ts`)
 
-`web_search` (version `web_search_20250305`, cf. CONVENTIONS) **uniquement** sur les items où il manque vraiment quelque chose (pricing, benchmark, réactions). Un changelog officiel (rôle 2) est déjà complet → **skip**. Réduit coût et risque de timeout.
+> **Correction v3.1 (dry-run du 21 mai).** Cause racine du problème de fond : le writer
+> recevait un **titre + une URL** et brodait avec sa connaissance interne. D'où des
+> détails fabriqués quand la source est vague (cf. OpenHands « agnostique 100+ providers »
+> transformé à tort en « GPT-4o, Claude 3.5 Sonnet » — des modèles de 2024). Le fix : cette
+> étape doit produire la **matière factuelle réelle** que le writer aura le droit d'utiliser,
+> et **rien d'autre**.
+
+Pour chaque item du top 15-20, produire un **bloc de matière source** (`source_material`) :
+
+1. **`fetch` du contenu réel** de la page source (README GitHub, changelog, blog officiel, fil HN). Extraire le texte utile (markdown/texte, pas le HTML brut). C'est la **matière obligatoire** passée au writer.
+2. **`web_search` complémentaire et sélectif** (version `web_search_20250305`, cf. CONVENTIONS) **uniquement** si un angle de différenciation manque : pricing, benchmark chiffré, réaction d'expert, montant de levée. Une source primaire déjà complète (changelog officiel) → **skip** le web_search.
+3. **Conserver la provenance** : chaque fait récupéré garde son URL d'origine, pour alimenter `articles.sources` et permettre au garde-fou QA (étape 5) de tracer chaque détail.
+
+Sortie : un `source_material` structuré (texte + liste d'URLs sourcées) par item. Si le `fetch` échoue et qu'il n'y a aucune matière exploitable, l'item est **écarté** (pas d'article écrit sur du vide). Logguer `[enrich] <item> dropped: no source content`.
 
 ### Étape 4 — Rédaction (`lib/writer.ts`)
 
+> **Correction v3.1 (dry-run du 21 mai).** Deux bugs : (a) le writer comblait les détails
+> manquants avec sa mémoire interne ; (b) l'intro du jour divergeait des articles
+> (« Kimi K2.5 » + « MiniMax » dans l'intro alors que les articles disaient « K2.6 » et ne
+> mentionnaient pas MiniMax) — signe qu'elle tournait **en parallèle**, sans voir le contenu final.
+
 - 1 appel **Sonnet** (`claude-sonnet-4-6`) par article → 300-500 mots markdown + summary + catégorie.
-- 1 appel pour l'**intro du jour** (`editions.intro_md`) qui lie l'édition.
+- **Le writer n'écrit QUE depuis le `source_material` de l'étape 3.** Instruction dure dans le prompt :
+  - « N'écris que ce qui est présent dans les sources fournies. »
+  - « Si un détail manque (modèles supportés, chiffres, dates, versions), ne l'invente pas : écris ce que la source dit, ou omets-le. »
+  - « Là où la source est générique (ex. "model-agnostic"), reste générique. N'illustre pas avec des exemples concrets non présents dans la source. »
+  - Le tic à tuer : le writer adore la couleur concrète → il fabrique du spécifique quand la source est abstraite. C'est plausible, donc dangereux.
+- **L'intro du jour est générée EN DERNIER**, à partir des `summary` **finaux** des articles retenus — jamais en parallèle, jamais depuis les items bruts. Elle ne doit mentionner que des éléments présents dans les articles publiés de l'édition.
 - **Pas de Haiku.** La qualité d'écriture est le seul moteur de forward et de SEO ; économiser sur le modèle dégraderait le seul avantage du produit.
 
 **Catégories** (`articles.category`) :
@@ -259,12 +301,18 @@ Persister les `raw_items` scorés (audit/dédup futur).
 
 ### Étape 5 — Garde-fou qualité (`lib/editor.ts`)
 
-Avant écriture en `published`. Flague (ne supprime pas silencieusement) :
+> **Correction v3.1 (dry-run du 21 mai).** L'editor n'a rien attrapé : un article citait
+> « Claude 3.5 Sonnet / GPT-4o » (2024) absents de la source. Le comblement est **plausible
+> par construction**, donc dur à détecter automatiquement — d'où la relecture humaine
+> obligatoire au début, ce n'est pas optionnel.
+
+Avant écriture en `published`. Flague (ne supprime pas silencieusement), passe l'article en `draft` s'il échoue :
+- **Détail factuel non traçable** : tout nom de modèle, chiffre, date, version, montant cité dans l'article doit se retrouver dans le `source_material` / `sources`. Sinon → flag « unsourced detail ». C'est le contrôle le plus important post-dry-run.
 - doublons sémantiques résiduels (fingerprint proche d'un article récent),
 - articles trop courts (< 200 mots) ou trop génériques,
-- articles sans source vérifiable.
+- articles sans aucune source vérifiable dans `sources`.
 
-Les premières semaines : tout reste `draft`, **tu lis avant de publier**. C'est le 1-2h/semaine réel. Voir CONVENTIONS §« Pipeline » règle 4.
+Le contrôle « détail non traçable » est imparfait (un LLM juge ne rattrapera pas tout). Tant que la qualité n'est pas prouvée, **tout reste `draft` et tu lis avant de publier** — c'est le 1-2h/semaine réel et le seul vrai filet contre le comblement. Voir CONVENTIONS §« Pipeline » règles 4 et 5.
 
 ### Étape 6 — Stockage + édition (`lib/db.ts`)
 

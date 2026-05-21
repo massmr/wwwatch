@@ -1,0 +1,64 @@
+@use '../_styles/mixins' as mq;
+
+.page {
+  padding: var(--space-12) var(--space-4);
+}
+
+.container {
+  max-width: var(--content-width);
+  margin: 0 auto;
+}
+
+.title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-8);
+}
+
+.section {
+  margin-bottom: var(--space-10);
+}
+
+.section-title {
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-3);
+}
+
+.body {
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--color-fg);
+
+  p { margin: 0 0 var(--space-4); }
+}
+
+.pipeline {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.8;
+  color: var(--color-muted);
+  margin-top: var(--space-4);
+}
+
+.step {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.step-num {
+  color: var(--color-accent);
+  flex-shrink: 0;
+  width: 20px;
+}
+
+.step-text {
+  color: var(--color-fg);
+}
