@@ -94,12 +94,11 @@ la directive `'use cache'` :
 ```ts
 async function getActiveSubscriberCount() {
   'use cache';
-  const supabase = getServerSupabase();
-  const { count } = await supabase
-    .from('subscribers')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'active');
-  return count ?? 0;
+  const sql = getSql();
+  const rows = await sql`
+    select count(*)::int as n from subscribers where status = ${'active'}
+  `;
+  return rows[0]?.n ?? 0;
 }
 ```
 
@@ -280,7 +279,7 @@ app/                  ← routes Next.js + composants spécifiques aux pages
 components/           ← composants réutilisables (Button, Input, Card...)
 lib/                  ← logique métier, intégrations externes (Supabase, Resend, Anthropic)
 scripts/              ← entrypoints CLI (brief.ts) lancés par GH Actions
-neon/                 ← schema SQL, migrations
+supabase/             ← schema SQL, migrations
 ```
 
 - `components/` est pour le **réutilisable**. Si un composant n'est utilisé
@@ -371,8 +370,7 @@ neon/                 ← schema SQL, migrations
 ## Variables d'environnement
 
 - **`NEXT_PUBLIC_*`** : exposé au browser. **Uniquement** des trucs non
-  sensibles (URL publique, clé publique). `DATABASE_URL` ne sera jamais
-  `NEXT_PUBLIC_`.
+  sensibles (URL Supabase, anon key publique).
 - **Tout le reste** : **jamais** importé dans un Client Component, jamais
   préfixé `NEXT_PUBLIC_`.
 - Au démarrage du script ou du serveur, **fail fast** si une var requise
@@ -387,34 +385,31 @@ neon/                 ← schema SQL, migrations
 
 ---
 
-## Neon / base de données
+## Supabase / base de données
 
-- Accès DB via `getSql()` dans `lib/db.ts` (client `@neondatabase/serverless`).
-  `DATABASE_URL` est une var serveur uniquement — jamais préfixée `NEXT_PUBLIC_`.
-- Toutes les requêtes utilisent les **tagged template literals** Neon :
+- Toutes les requêtes serveur passent par le client `service_role`,
+  **jamais** par `anon`. (Au MVP on n'a pas d'auth utilisateur.)
+- Toutes les requêtes gèrent `error` :
   ```ts
-  const sql = getSql();
-  const rows = await sql`SELECT * FROM subscribers WHERE status = ${'active'}`;
+  const { data, error } = await supabase.from('x').select();
+  if (error) throw error;
   ```
-  Les paramètres sont automatiquement échappés — ne jamais interpoler des
-  strings directement dans la requête.
-- Pas de SQL brut concaténé avec des inputs utilisateur.
+- Pas de SQL brut concaténé avec des inputs utilisateur. Le SDK Supabase
+  paramétrise automatiquement, ne pas court-circuiter.
 - Migrations : tout changement de schéma passe par un fichier dans
-  `neon/` versionné. Pas de "j'ai cliqué dans la console Neon". Si on
+  `supabase/` versionné. Pas de "j'ai cliqué dans l'UI Supabase". Si on
   doit reconstruire la DB, le SQL est la source de vérité.
-- Pas de RLS au MVP (Neon n'a pas de service_role distinct). L'accès
-  est contrôlé uniquement par le fait que `DATABASE_URL` est côté serveur.
+- RLS activée sur toutes les tables exposées. Pas de policy publique
+  pour ce MVP (tout passe par service_role côté serveur).
 
 ---
 
 ## Appels LLM (Anthropic)
 
-- **Modèle pinné** : `claude-sonnet-4-6`. Validé après test de coût (Opus à $12/run, Sonnet ~$0.60/run).
-  Ne pas changer sans validation. Les évals de prompt ne sont pas portables entre modèles.
-- **Tool web_search** : version `web_search_20250305`. Downgrade validé depuis
-  `web_search_20260209` : le sandbox de dynamic filtering causait des timeouts
-  systématiques ("Detection timed out after 25s"). Repasser sur `20260209` si
-  Anthropic stabilise le service.
+- **Modèle pinné** : `claude-opus-4-7`. Ne pas changer sans validation.
+  Les évals de prompt ne sont pas portables entre modèles.
+- **Tool web_search** : version `web_search_20260209`. La version est dans
+  le contrat. Ne pas downgrade.
 - **Logguer les usages** : tokens in/out, durée, succès/échec. Permet de
   suivre les coûts.
 - **Le prompt est versionné dans le code** (`lib/prompt.ts`), pas dans
@@ -546,3 +541,127 @@ Ces règles s'adressent à toi, l'agent qui exécute le plan.
 | `'use client'` sur toute la page | sous-composant client minimal |
 | `middleware.ts` (Next 15) | `proxy.ts` (Next 16) |
 | `// TODO: fix later` | `// TODO(nom, 2026-MM-DD): action précise` |
+
+---
+
+## Pipeline de génération (PLAN_3)
+
+Ces règles s'appliquent au pipeline quotidien (`scripts/daily.ts`), hebdo
+(`scripts/weekly.ts`) et au code `lib/collectors/`, `lib/scoring.ts`,
+`lib/enrich.ts`, `lib/writer.ts`, `lib/editor.ts`.
+
+1. **Pas d'agent autonome.** Le pipeline est un flux déterministe :
+   collect → score → enrich → write → store. Les appels LLM (rédaction
+   d'article, intro du jour, passe QA) sont des **appels discrets**, pas
+   des agents en boucle. Pas d'orchestration multi-agents, pas de
+   « planner » LLM qui décide des étapes. Si tu es tenté d'ajouter une
+   boucle agentique, c'est un signal d'over-engineering : `// FUTURE:` et
+   on continue.
+
+2. **Le serveur Next ne génère jamais.** Aucun appel LLM ni `web_search`
+   dans le chemin d'une requête web (`app/**`). Toute génération vit dans
+   `scripts/**` lancés par cron. Les pages **lisent la DB**, point. Si tu
+   vois un import d'`@anthropic-ai/sdk` dans `app/**`, c'est un bug.
+
+3. **`lib/research.ts` est mort.** L'ancienne génération à la volée
+   (Claude + web_search dans le serveur) est supprimée. Ne pas la
+   ressusciter, ne pas s'en inspirer. La source de vérité est PLAN_3.md.
+
+4. **Statut `draft` → `published`, avec relecture humaine au début.**
+   `daily.ts` écrit en `status='draft'`. La publication est une action
+   séparée (`scripts/publish.ts <day>`). Tant que la qualité n'est pas
+   prouvée (premières semaines), **ne pas auto-publier**. Passer à
+   l'auto-publish dans `daily.ts` est une décision explicite, notée, pas
+   un défaut. Une page jamais relue qui part en prod = risque SEO
+   (déclassement contenu IA de masse).
+
+5. **Garde-fou qualité obligatoire avant publish.** `lib/editor.ts` flague
+   (jamais ne supprime silencieusement) : doublons sémantiques résiduels,
+   articles < 200 mots, articles sans source vérifiable. Un article flaggé
+   reste `draft`. Pas de publication d'un lot non passé par l'editor.
+
+6. **Une source morte ne tue pas le run.** Collecte en
+   `Promise.allSettled`. Chaque échec est loggué `[collectors] <source>
+   failed` et le run continue avec les sources vivantes. Jamais de `await
+   Promise.all` qui fait tout planter si HN est down.
+
+7. **Dédup par URL ET fingerprint.** Le même lancement arrive sur HN +
+   Reddit + blog officiel = **un seul sujet**. Dédup sur URL exacte puis
+   sur `fingerprint` (titre normalisé). Le fingerprint sert aussi à ne pas
+   réécrire la même histoire le lendemain (check inter-jours en DB).
+
+8. **Enrichissement sélectif, pas systématique.** `web_search` (version
+   `web_search_20250305`, cf. §Appels LLM) uniquement sur les items où il
+   manque vraiment quelque chose (pricing, benchmark, réactions). Une
+   source primaire (changelog, blog officiel) est déjà complète → **skip
+   l'enrichissement**. Réduit coût et risque de timeout.
+
+9. **Sonnet partout. Pas de Haiku pour la rédaction.** La qualité
+   d'écriture est le seul moteur de forward et de SEO. `claude-sonnet-4-6`
+   pour les articles, l'intro et la QA. Économiser sur le modèle = dégrader
+   le seul avantage du produit. Interdit sans validation explicite.
+
+10. **Coût borné, loggué.** Le pipeline ne doit pas indexer son coût sur le
+    trafic. Logguer par run : nombre d'items collectés, nombre d'articles
+    générés, tokens in/out, durée, échecs. Permet de suivre la dérive.
+
+---
+
+## Contenu publié — anglais uniquement (MVP)
+
+On est parti d'une VF. **Tout le produit est en anglais.**
+
+1. **Tout contenu visible utilisateur est en anglais** : sortie LLM
+   (articles, intro, brief), templates email, strings `app/**`, landing,
+   about. Le `lib/prompt.ts` doit produire de l'anglais.
+2. **Les commentaires de code peuvent rester en français** (interne). La
+   frontière : si un humain extérieur le lit, c'est EN ; si c'est pour
+   l'équipe dans le code, FR toléré.
+3. **Colonne `lang` partout** (`articles`, `editions`), défaut `'en'`. Le
+   bilingue FR-EN n'est PAS au scope MVP, mais on ne se ferme pas la
+   porte : pas de string EN hardcodée là où `lang` devrait décider plus
+   tard. Préfixe de route `/en/` → `FUTURE.md`.
+4. **Pas de texte FR résiduel en prod.** Si tu trouves du français dans un
+   template, un prompt ou une page, c'est un bug de migration à traduire,
+   pas à laisser.
+
+---
+
+## Modèle de données pipeline (rappel)
+
+Détail complet dans PLAN_3.md §4. Garde-fous :
+
+1. **5 tables** : `subscribers`, `briefs` (existantes) + `editions`,
+   `articles`, `raw_items`. Migrations dans `neon/`, versionnées. Jamais de
+   modif via la console Neon.
+2. **`articles` : unicité `(day, slug)`.** Un slug est stable et
+   réutilisable dans l'URL. Pas de slug généré aléatoirement.
+3. **`sources` en `jsonb`** : `[{ url, source, title }]`. Toujours au moins
+   une source vérifiable (cf. garde-fou QA règle 5).
+4. **`raw_items` gardés ~30 jours** : audit, scoring, dédup inter-jours.
+   Pas de purge agressive au MVP, mais pas de rétention infinie non plus
+   (`// FUTURE:` job de nettoyage).
+5. **Catégories `articles.category`** (set fermé) : `coding_agent`,
+   `framework`, `infra_api`, `research`, `tool`, `funding`, `security`,
+   `eval`, `ops`. Ajouter une catégorie = décision éditoriale, pas un
+   défaut. `funding` / `security` / `eval` / `ops` portent la
+   différenciation — ne pas les fusionner par paresse dans `tool`.
+
+---
+
+## Pages journal (rendu)
+
+1. **Pages publiées en `'use cache'`.** `/journal/[date]` et
+   `/journal/[date]/[slug]` servent du contenu immuable jusqu'au prochain
+   build/revalidation → cas légitime de `'use cache'` (≠ l'abus interdit au
+   §Caching). Invalidation déclenchée par `publish.ts`.
+2. **`params` est une Promise** (Next 16) : `const { date, slug } = await
+   params`. Format `date` : `YYYY-MM-DD`.
+3. **`Today` pointe sur la dernière édition `published`**, pas sur
+   `new Date()` (le cron peut ne pas avoir tourné, ou l'édition être encore
+   en draft).
+4. **Markdown LLM = donnée non fiable.** `body_md` / `intro_md` → `marked`
+   **+ sanitization** avant rendu. Jamais de `dangerouslySetInnerHTML` sur
+   du markdown LLM non sanitizé (cf. §Appels LLM).
+5. **Pas de pages catégorie / recherche / pagination au MVP.** →
+   `FUTURE.md`.

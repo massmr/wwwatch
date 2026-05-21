@@ -19,9 +19,9 @@ export function Footer({ unsubscribeUrl }: FooterProps) {
             fontFamily: 'ui-monospace,SFMono-Regular,Menlo,monospace',
           }}
         >
-          wwwatch — veille IA hebdo pour product engineers.{' '}
+          wwwatch — weekly AI digest for product engineers.{' '}
           <Link href={unsubscribeUrl} style={{ color: C_ACCENT, textDecoration: 'underline' }}>
-            Se désinscrire
+            Unsubscribe
           </Link>
         </Text>
       </Section>

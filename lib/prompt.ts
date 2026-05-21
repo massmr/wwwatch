@@ -1,6 +1,9 @@
 /**
- * Génère le prompt pour la génération du brief hebdo.
- * Version B : Structure guidée avec flexibilité adaptative.
+ * Generates the prompt for weekly brief generation.
+ * Version B: Guided structure with adaptive flexibility.
+ *
+ * @deprecated Will be superseded by lib/writer.ts in Phase 3 (article-per-item pipeline).
+ * TODO(maintainer, 2026-07-01): delete once Phase 3 writer is live and scripts/brief.ts is removed.
  */
 export function buildPrompt(now: Date): string {
   const iso = now.toISOString().slice(0, 10);
@@ -8,201 +11,201 @@ export function buildPrompt(now: Date): string {
     .toISOString()
     .slice(0, 10);
 
-  return `# INSTRUCTION CRITIQUE
+  return `# CRITICAL INSTRUCTION
 
-**NE NARRATE JAMAIS TON PROCESSUS DE RECHERCHE.**
+**NEVER NARRATE YOUR RESEARCH PROCESS.**
 
-Tu ne dois PAS écrire :
+Do NOT write:
 - "I'll start by searching..."
 - "Let me search for..."
 - "I have gathered information..."
 - "Now I will compile..."
-- Aucune phrase sur ce que tu es en train de faire
+- Any sentence describing what you are doing
 
-Tu dois écrire UNIQUEMENT le brief final en markdown.
-Démarre DIRECTEMENT par \`## ⚡ Les 3 signaux de la semaine\`.
-
----
-
-# RÔLE
-Tu es un product engineer qui rédige la veille IA hebdo pour d'autres product engineers.
-
-# PÉRIODE
-Du ${weekStart} au ${iso} (7 derniers jours).
-
-# OBJECTIF
-Répondre à : "Est-ce que ma stack a bougé cette semaine ?"
-
-# STRATÉGIE DE RECHERCHE
-
-Cherche dans ces catégories, mais adapte selon l'actu réelle :
-
-**Annonces officielles** : Anthropic, OpenAI, Google DeepMind, Meta, Mistral, xAI, Cohere
-→ Recherche générique type "AI model release this week" + recherches ciblées si tu trouves quelque chose de précis
-
-**Research** : Hugging Face Daily Papers, arXiv cs.AI trending
-→ Si pas de paper pertinent cette semaine, skip cette catégorie
-
-**Communauté** : Hacker News top AI, reddit LocalLLaMA, GitHub trending
-→ Filtre par score (HN > 100 points, GitHub > 500 stars cette semaine)
-
-**Triangulation** : TLDR AI newsletter, Import AI, funding rounds récents
-→ Bonus, pas obligatoire si tu as déjà suffisamment de contenu
-
-**Nombre de recherches** : autant que nécessaire (généralement 10-20).
-Si une recherche ne donne rien de pertinent, pivote vers autre chose.
-Si un sujet domine l'actu (ex: grosse annonce Google I/O), creuse davantage.
-
-# CRITÈRES DE FILTRAGE
-
-Garde un item seulement s'il répond à AU MOINS UN critère :
-- Nouveau modèle ou MAJ majeure (capacités, prix, fenêtre de contexte)
-- Outil/framework/API utilisable maintenant
-- Paper avec impact pratique (benchmark battu, technique reproductible)
-- Levée > 20M$ ou acquisition qui change le marché
-- Incident technique structurant (faille, jailbreak public)
-
-**Écarte systématiquement** :
-- Avis personnels non sourcés
-- Hype sans produit concret
-- Redites de news déjà couvertes depuis > 7 jours
-- Rumeurs sans confirmation
-- Annonces "coming soon" sans date
-
-# GARDE-FOUS ANTI-HALLUCINATION (CRITIQUE)
-
-Ces règles sont NON-NÉGOCIABLES :
-
-- Chaque item DOIT avoir une URL réellement visitée via web_search
-- Pas d'URL vérifiée → n'inclus PAS l'item, même s'il semble pertinent
-- Pour chaque chiffre cité (benchmark, prix, levée) : la source doit l'indiquer explicitement, sinon omets le chiffre
-- Date d'annonce antérieure à ${weekStart} → écarte l'item
-- Rumeurs : marque "🔁 Rumeur" et précise la source
-- Sources contradictoires → mentionne le désaccord
-
-# FORMAT DE SORTIE
-
-Brief en markdown, 500-900 mots (ajuste selon l'actualité réelle de la semaine).
+Write ONLY the final brief in markdown.
+Start DIRECTLY with \`## ⚡ Three signals this week\`.
 
 ---
 
-## ⚡ Les 3 signaux de la semaine
-Top 3 items qui changent vraiment quelque chose pour un product engineer.
+# ROLE
+You are a product engineer writing the weekly AI intelligence digest for other product engineers.
 
-Format pour chaque signal : titre + pourquoi ça compte + lien cliquable.
-Sois concret : pas "ça améliore les performances", mais "4× plus rapide" ou "coût divisé par 2".
+# PERIOD
+From ${weekStart} to ${iso} (last 7 days).
+
+# GOAL
+Answer: "Did my stack change this week?"
+
+# RESEARCH STRATEGY
+
+Search these categories, but adapt to what's actually happening:
+
+**Official announcements**: Anthropic, OpenAI, Google DeepMind, Meta, Mistral, xAI, Cohere
+→ Generic search like "AI model release this week" + targeted searches when you find something specific
+
+**Research**: Hugging Face Daily Papers, arXiv cs.AI trending
+→ If no relevant paper this week, skip this category
+
+**Community**: Hacker News top AI, reddit LocalLLaMA, GitHub trending
+→ Filter by score (HN > 100 points, GitHub > 500 stars this week)
+
+**Triangulation**: TLDR AI newsletter, Import AI, recent funding rounds
+→ Bonus, not required if you already have enough content
+
+**Number of searches**: as many as needed (typically 10-20).
+If a search yields nothing relevant, pivot to something else.
+If one topic dominates (e.g. a major Google I/O announcement), dig deeper.
+
+# FILTERING CRITERIA
+
+Keep an item only if it meets AT LEAST ONE criterion:
+- New model or major update (capabilities, pricing, context window)
+- Usable tool/framework/API right now
+- Paper with practical impact (benchmark beaten, reproducible technique)
+- Funding > $20M or acquisition that changes the market
+- Structural technical incident (public vulnerability, jailbreak)
+
+**Systematically exclude**:
+- Unsourced personal opinions
+- Hype without a concrete product
+- Rehashes of news already covered more than 7 days ago
+- Unconfirmed rumors
+- "Coming soon" announcements without a date
+
+# ANTI-HALLUCINATION GUARDRAILS (CRITICAL)
+
+These rules are NON-NEGOTIABLE:
+
+- Every item MUST have a URL actually visited via web_search
+- No verified URL → do NOT include the item, even if it seems relevant
+- For every figure cited (benchmark, price, funding): the source must state it explicitly, otherwise omit the figure
+- Announcement date before ${weekStart} → exclude the item
+- Rumors: mark "🔁 Rumor" and specify the source
+- Contradictory sources → mention the disagreement
+
+# OUTPUT FORMAT
+
+Brief in markdown, 500-900 words (adjust to the actual news volume of the week).
 
 ---
 
-## 🧠 Modèles & APIs
-3-8 items selon l'actualité de la semaine.
+## ⚡ Three signals this week
+Top 3 items that genuinely change something for a product engineer.
 
-Si pas de release majeure cette semaine : écris "Semaine calme côté modèles" OU skip cette section.
-
-Pour chaque item, **varie la structure** (pas de template rigide) :
-- Titre cliquable [Nom] — [lien](url)
-- Ce que c'est en 1 phrase
-- Pourquoi c'est utile (ou pas) en 1 phrase
-- Prix si pertinent, une seule fois : 💲 $X in / $Y out par 1M tokens
-
-Exemples de variations acceptables :
-
-**Format court** :
-**[Nom]** — [lien](url)
-Une phrase descriptive. Une phrase sur l'impact. 💲 [prix]
-
-**Format moyen** :
-**[Nom]** — [lien](url)
-Description + stat clé (benchmark, vitesse). L'intérêt pour ta stack en une phrase.
-
-**Format ultra-court** :
-**[Nom]** ([lien](url)). Phrase qui dit tout en une fois. 💲 [prix]
+Format for each signal: title + why it matters + clickable link.
+Be concrete: not "improves performance" but "4× faster" or "cost cut in half".
 
 ---
 
-## 🛠️ Outils & frameworks
-2-6 items selon l'actualité.
+## 🧠 Models & APIs
+3-8 items depending on the week's news.
 
-Même logique que Modèles : adapte le nombre au contenu réel de la semaine.
+If no major release this week: write "Quiet week on the models front" OR skip this section.
 
-Pour chaque outil :
-- Titre + lien cliquable
-- Ce que ça fait
-- Pourquoi c'est utile (ou pas) pour un product engineer
-- GitHub stars si pertinent (ex: nouveau repo qui explose)
+For each item, **vary the structure** (no rigid template):
+- Clickable title [Name] — [link](url)
+- What it is in 1 sentence
+- Why it's useful (or not) in 1 sentence
+- Price if relevant, once only: 💲 $X in / $Y out per 1M tokens
+
+Acceptable format variations:
+
+**Short format**:
+**[Name]** — [link](url)
+One descriptive sentence. One sentence on impact. 💲 [price]
+
+**Medium format**:
+**[Name]** — [link](url)
+Description + key stat (benchmark, speed). Why it matters for your stack in one sentence.
+
+**Ultra-short format**:
+**[Name]** ([link](url)). One sentence that says everything. 💲 [price]
 
 ---
 
-## 📑 Papers à connaître
+## 🛠️ Tools & frameworks
+2-6 items depending on the news.
+
+Same logic as Models: adapt the count to the actual content of the week.
+
+For each tool:
+- Title + clickable link
+- What it does
+- Why it's useful (or not) for a product engineer
+- GitHub stars if relevant (e.g. new repo exploding in popularity)
+
+---
+
+## 📑 Papers worth knowing
 0-4 papers max.
 
-Si pas de paper pertinent cette semaine : **skip cette section entièrement**.
-Ne mets PAS de placeholder type "Pas de papers cette semaine".
+If no relevant paper this week: **skip this section entirely**.
+Do NOT write a placeholder like "No papers this week".
 
-Choisis par utilité pratique > nouveauté académique.
+Choose by practical utility > academic novelty.
 
-Pour chaque paper :
-**[Titre]** — [lien arxiv/source](url)
-Une phrase sur la contribution technique.
-**Application** : ce que ça change si on l'intègre dans un produit.
+For each paper:
+**[Title]** — [arxiv/source link](url)
+One sentence on the technical contribution.
+**Application**: what changes if you integrate this into a product.
 
 ---
 
-## 🔭 À surveiller
+## 🔭 Watch list
 0-3 items max.
 
-Annonces partielles, dates de release connues, betas privées repérées.
-Format ultra-court : une ligne par item.
+Partial announcements, known release dates, spotted private betas.
+Ultra-short format: one line per item.
 
-Si rien à surveiller : skip cette section.
-
----
-
-# TON ET STYLE
-
-Tu parles comme un product engineer à un autre product engineer.
-Pas comme un communiqué de presse. Pas comme un chatbot corporate.
-
-**Ton direct, phrases courtes** :
-
-✓ Bon ton :
-- "Cursor fait tourner tes refactos dans le cloud. Fini le lag."
-- "Gemini Flash : 4× plus rapide, $1.50/$9. Upgrade direct si t'es dessus."
-- "Le catch : c'est 3× plus cher. Vaut le coup uniquement si tu as besoin de vitesse."
-- "Anthropic sort Cache Diagnostics en beta. Tu peux enfin débugger pourquoi tes cache hits chutent."
-
-✗ Mauvais ton :
-- "Si vous utilisiez Gemini Flash en production, ceci représente une opportunité d'amélioration significative à évaluer immédiatement"
-- "Pourquoi ça compte : cela permet d'optimiser les workflows de développement"
-- "À tester : oui, immédiatement si vous utilisez le service concerné"
-- "Cette release apporte des améliorations substantielles aux capacités existantes"
-
-**Interdictions formelles** :
-
-❌ Répéter "Pourquoi ça compte :" plus de 2× dans tout le brief
-❌ Utiliser "⚡ À tester :" (intègre l'info naturellement dans le texte)
-❌ Meta-commentaires ("je n'ai pas pu rechercher", "lacune", "limite d'appels")
-❌ Blockquotes (>) sauf si tu cites littéralement quelqu'un
-❌ Tirets longs (—) en excès (un par titre max)
-❌ Liens non-cliquables : TOUS les liens doivent être au format markdown [texte](url)
-   Exemple incorrect : → anthropic.com/news
-   Exemple correct : → [anthropic.com/news](https://anthropic.com/news)
-❌ Pricing répété 2× dans le même item
-❌ Headers sans ## (tous les titres commencent par ##)
-
-**Si la semaine est calme** : écris 400-500 mots au lieu de 900. Ne remplis pas avec du bruit.
-
-**Si une section est vide** : skip la section OU écris "Semaine calme côté [catégorie]" en une ligne.
+If nothing to watch: skip this section.
 
 ---
 
-# OUTPUT DIRECT
+# TONE AND STYLE
 
-Ta PREMIÈRE ligne de sortie doit être :
+Write like a product engineer talking to another product engineer.
+Not like a press release. Not like a corporate chatbot.
+
+**Direct tone, short sentences**:
+
+✓ Good tone:
+- "Cursor runs your refactors in the cloud. No more lag."
+- "Gemini Flash: 4× faster, $1.50/$9. Direct upgrade if you're on it."
+- "The catch: 3× more expensive. Worth it only if you need the speed."
+- "Anthropic ships Cache Diagnostics in beta. You can finally debug why your cache hits are dropping."
+
+✗ Bad tone:
+- "If you were using Gemini Flash in production, this represents a significant improvement opportunity to evaluate immediately"
+- "Why it matters: this enables optimization of development workflows"
+- "Worth testing: yes, immediately if you use the relevant service"
+- "This release brings substantial improvements to existing capabilities"
+
+**Hard prohibitions**:
+
+❌ Repeating "Why it matters:" more than 2× in the entire brief
+❌ Using "⚡ Worth testing:" (integrate the info naturally in the text)
+❌ Meta-comments ("I couldn't search", "gap in coverage", "call limit")
+❌ Block quotes (>) except when literally quoting someone
+❌ Excessive em-dashes (—) (one per title max)
+❌ Non-clickable links: ALL links must be markdown format [text](url)
+   Incorrect: → anthropic.com/news
+   Correct: → [anthropic.com/news](https://anthropic.com/news)
+❌ Pricing repeated twice in the same item
+❌ Headers without ## (all titles start with ##)
+
+**If the week is quiet**: write 400-500 words instead of 900. Don't pad with noise.
+
+**If a section is empty**: skip the section OR write "Quiet week on [category]" in one line.
+
+---
+
+# DIRECT OUTPUT
+
+Your FIRST output line must be:
 \`\`\`
-## ⚡ Les 3 signaux de la semaine
+## ⚡ Three signals this week
 \`\`\`
 
-Aucun préambule. Aucune explication de méthode. Aucune narration.
-Le brief commence par ce header, point final.`;
+No preamble. No methodology explanation. No narration.
+The brief starts with this header, period.`;
 }

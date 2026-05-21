@@ -32,7 +32,7 @@ export function Header() {
           letterSpacing: '0.05em',
         }}
       >
-        Veille IA pour product engineers
+        AI intel for product engineers
       </Text>
     </Section>
   );

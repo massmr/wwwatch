@@ -13,7 +13,7 @@ type WeeklyBriefProps = {
 
 export function WeeklyBrief({ markdown, unsubscribeUrl, previewText }: WeeklyBriefProps) {
   return (
-    <Html lang="fr">
+    <Html lang="en">
       <Head />
       <Preview>{previewText}</Preview>
       <Body

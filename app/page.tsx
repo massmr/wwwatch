@@ -7,38 +7,38 @@ export default function Page() {
       <div className={styles.container}>
         <div className={styles.badge}>
           <span className={styles.dot} />
-          <span>NEWSLETTER HEBDO · GRATUITE</span>
+          <span>DAILY JOURNAL · FREE</span>
         </div>
 
         <h1 className={styles.title}>
-          La veille IA pour <em>product engineers</em>.
+          AI intel for <em>product engineers</em>.
         </h1>
 
         <p className={styles.subtitle}>
-          Un brief par semaine, le lundi matin. Trié par un product engineer
-          pour les product engineers. Pas de hype, pas de business porn —
-          juste ce qui change ta stack cette semaine.
+          One brief a week, Monday morning. Curated by a product engineer
+          for product engineers. No hype, no business porn —
+          just what actually changed your stack this week.
         </p>
 
         <SubscribeForm />
 
         <div className={styles.cards}>
           <div className={styles.card}>
-            <div className={styles['card-title']}>Modèles</div>
-            <p className={styles['card-body']}>Releases Anthropic, OpenAI, Google, open source.</p>
+            <div className={styles['card-title']}>Models</div>
+            <p className={styles['card-body']}>Anthropic, OpenAI, Google, open-source releases.</p>
           </div>
           <div className={styles.card}>
-            <div className={styles['card-title']}>Outils</div>
-            <p className={styles['card-body']}>Frameworks, APIs, repos GitHub qui décollent.</p>
+            <div className={styles['card-title']}>Tools</div>
+            <p className={styles['card-body']}>Frameworks, APIs, GitHub repos taking off.</p>
           </div>
           <div className={styles.card}>
             <div className={styles['card-title']}>Papers</div>
-            <p className={styles['card-body']}>Le top de Hugging Face Daily + arXiv.</p>
+            <p className={styles['card-body']}>Top picks from Hugging Face Daily + arXiv.</p>
           </div>
         </div>
 
         <footer className={styles.footer}>
-          Aucune pub. Désinscription en un clic.
+          No ads. One-click unsubscribe.
         </footer>
       </div>
     </main>

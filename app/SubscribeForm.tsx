@@ -17,12 +17,12 @@ export function SubscribeForm() {
           type="email"
           name="email"
           required
-          placeholder="ton@email.com"
+          placeholder="your@email.com"
           className={styles.input}
           disabled={pending}
         />
         <button type="submit" disabled={pending} className={styles.button}>
-          {pending ? '…' : "S'inscrire"}
+          {pending ? '…' : 'Subscribe'}
         </button>
       </div>
       {state.status === 'error' && (

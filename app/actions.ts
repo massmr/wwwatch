@@ -15,22 +15,22 @@ export async function subscribe(
 ): Promise<SubscribeState> {
   const raw = formData.get('email');
   if (typeof raw !== 'string') {
-    return { status: 'error', message: 'Email invalide.' };
+    return { status: 'error', message: 'Invalid email.' };
   }
 
   const email = raw.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) {
-    return { status: 'error', message: 'Email invalide.' };
+    return { status: 'error', message: 'Invalid email.' };
   }
 
   try {
     await upsertSubscriber(email);
     return {
       status: 'ok',
-      message: 'Inscrit. Le prochain brief arrive lundi matin.',
+      message: 'Subscribed. Your first brief lands next Monday morning.',
     };
   } catch (err) {
     console.error('[subscribe]', err);
-    return { status: 'error', message: 'Erreur serveur, réessaie plus tard.' };
+    return { status: 'error', message: 'Server error, please try again later.' };
   }
 }

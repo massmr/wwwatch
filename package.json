@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "brief": "tsx scripts/brief.ts",
-    "brief:local": "tsx --env-file=.env.local scripts/brief.ts",
-    "brief:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/brief.ts",
+    "daily": "tsx --env-file=.env.local scripts/daily.ts",
+    "daily:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/daily.ts",
+    "weekly": "tsx --env-file=.env.local scripts/weekly.ts",
+    "weekly:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/weekly.ts",
+    "publish": "tsx --env-file=.env.local scripts/publish.ts",
     "email:dev": "react-email dev --dir emails"
   },
   "dependencies": {
@@ -16,10 +18,12 @@
     "@neondatabase/serverless": "^0.10.0",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.0.8",
-    "next": "^16.0.0",
+    "marked": "^15.0.0",
+    "next": "16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "resend": "^4.0.0"
+    "resend": "^4.0.0",
+    "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

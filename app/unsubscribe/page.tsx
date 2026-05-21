@@ -15,7 +15,8 @@ function decodeToken(raw: string): string | null {
   let decoded: string;
   try {
     decoded = Buffer.from(raw, 'base64url').toString('utf-8');
-  } catch {
+  } catch (err) {
+    console.error('[unsubscribe] token base64 decode error', err);
     return null;
   }
 
@@ -25,13 +26,15 @@ function decodeToken(raw: string): string | null {
   const email = decoded.slice(0, colonIdx);
   const providedHmac = decoded.slice(colonIdx + 1);
 
-  const secret = process.env.UNSUBSCRIBE_SECRET ?? '';
+  const secret = process.env.UNSUBSCRIBE_SECRET;
+  if (!secret) throw new Error('[unsubscribe] UNSUBSCRIBE_SECRET missing');
   const expectedHmac = createHmac('sha256', secret).update(email).digest('hex');
 
   try {
     // Timing-safe comparison to prevent timing attacks.
     if (!timingSafeEqual(Buffer.from(expectedHmac), Buffer.from(providedHmac))) return null;
-  } catch {
+  } catch (err) {
+    console.error('[unsubscribe] HMAC comparison error', err);
     return null;
   }
 
@@ -44,7 +47,7 @@ export default async function UnsubscribePage({ searchParams }: Props) {
   if (typeof token !== 'string') {
     return (
       <main className={styles.main}>
-        <p className={styles.error}>Lien invalide ou expiré.</p>
+        <p className={styles.error}>Invalid or expired link.</p>
       </main>
     );
   }
@@ -54,7 +57,7 @@ export default async function UnsubscribePage({ searchParams }: Props) {
   if (!email) {
     return (
       <main className={styles.main}>
-        <p className={styles.error}>Lien invalide ou expiré.</p>
+        <p className={styles.error}>Invalid or expired link.</p>
       </main>
     );
   }
@@ -65,16 +68,16 @@ export default async function UnsubscribePage({ searchParams }: Props) {
     console.error('[unsubscribe]', err);
     return (
       <main className={styles.main}>
-        <p className={styles.error}>Erreur serveur, réessaie plus tard.</p>
+        <p className={styles.error}>Server error, please try again later.</p>
       </main>
     );
   }
 
   return (
     <main className={styles.main}>
-      <h1 className={styles.title}>Désinscription confirmée.</h1>
+      <h1 className={styles.title}>Unsubscribed.</h1>
       <p className={styles.subtitle}>
-        Tu ne recevras plus wwwatch. Bonne continuation.
+        You&apos;ve been removed from wwwatch. Take care.
       </p>
     </main>
   );
