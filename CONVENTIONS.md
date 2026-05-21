@@ -406,8 +406,10 @@ supabase/             ← schema SQL, migrations
 
 ## Appels LLM (Anthropic)
 
-- **Modèle pinné** : `claude-opus-4-7`. Ne pas changer sans validation.
-  Les évals de prompt ne sont pas portables entre modèles.
+- **Modèle pinné** :
+  - **Pipeline** (`scripts/daily.ts`, `scripts/weekly.ts`, `lib/writer.ts`, `lib/enrich.ts`) : `claude-sonnet-4-6` — décision délibérée PLAN_3 §6 règle 9 (la qualité d'écriture est le seul moteur de SEO et de forward ; Haiku interdit). Voir CONVENTIONS §Pipeline règle 9.
+  - **Autres usages** (si ajoutés) : `claude-opus-4-7` par défaut.
+  - Ne pas changer sans validation. Les évals de prompt ne sont pas portables entre modèles.
 - **Tool web_search** : version `web_search_20250305`. Le sandbox de
   `web_search_20260209` causait des timeouts systématiques ("Detection timed out
   after 25s") et ~24% de tokens supplémentaires. Revenir à `20260209` uniquement

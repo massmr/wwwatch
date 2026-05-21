@@ -10,6 +10,7 @@
  * Usage:
  *   npm run daily        # full run
  *   npm run daily:dry    # DRY_RUN=1 — no DB writes, logs full article output
+ *   DAY=2026-05-20 npm run daily:dry   # override date for testing
  */
 import { collectAll } from '@/lib/collectors/index';
 import { scoreItems } from '@/lib/scoring';
@@ -24,7 +25,6 @@ import {
 } from '@/lib/db';
 
 const DRY_RUN = process.env.DRY_RUN === '1';
-// Allow overriding the day for testing: DAY=2026-05-20 npm run daily:dry
 const TODAY = process.env.DAY ?? new Date().toISOString().slice(0, 10);
 
 async function main(): Promise<void> {
@@ -48,8 +48,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  // ─── Step 3: Enrich (selective) ──────────────────────────────────────────
+  // ─── Step 3: Enrich (fetch source content) ───────────────────────────────
   const enriched = await enrichItems(top);
+
+  if (enriched.length === 0) {
+    console.error('[daily] enrich produced no items — aborting');
+    return;
+  }
 
   // ─── Step 4: Write ───────────────────────────────────────────────────────
   const { articles, introMd, tokenUsage } = await writeArticles(enriched, TODAY);
@@ -64,7 +69,13 @@ async function main(): Promise<void> {
   }
 
   // ─── Step 5: QA ──────────────────────────────────────────────────────────
-  const flags = checkArticles(articles, recentFingerprints);
+  // Pass source_material into the editor so it can check unsourced details.
+  const articlesWithMaterial = articles.map((a) => {
+    const enrichedItem = enriched.find((e) => e.fingerprint === a.fingerprint);
+    return { ...a, sourceMaterial: enrichedItem?.sourceMaterial.content };
+  });
+
+  const flags = checkArticles(articlesWithMaterial, recentFingerprints);
   if (flags.length > 0) {
     console.warn(`[daily] editor: ${flags.length} article(s) flagged`);
     for (const f of flags) {

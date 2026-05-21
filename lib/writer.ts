@@ -1,14 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import type { NewArticle } from './db';
-import type { ScoredItem } from './scoring';
+import type { EnrichedItem } from './enrich';
 
 const MODEL = 'claude-sonnet-4-6';
 
-// Writer calls use ~800-1500 input tokens each (no web_search).
-// 2s gap gives ~30 calls/min, safely under the 30k TPM free-tier limit.
-// TODO(maintainer, 2026-07-01): reduce or remove once on a higher usage tier.
-const INTER_CALL_SLEEP_MS = 2_000;
+// Writer calls use ~1000-1500 input tokens (source material + prompt).
+// 3s gap = ~20 calls/min = ~30k TPM — at the ceiling on free tier.
+// Tier 2 allows higher TPM so this can be reduced; kept as a safe default.
+const INTER_CALL_SLEEP_MS = 3_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -53,9 +53,7 @@ function slugify(title: string): string {
 
 /**
  * Extracts a JSON object from a response that may contain surrounding text.
- * Uses lastIndexOf('}') to find the outermost closing brace — the fenced-code
- * approach (regex) is not used because body_md contains nested braces that
- * would confuse a non-greedy match.
+ * Uses lastIndexOf('}') — safe for nested braces in body_md.
  */
 function extractJson(text: string): string {
   const start = text.indexOf('{');
@@ -72,23 +70,31 @@ function extractText(content: Anthropic.Messages.ContentBlock[]): string {
     .trim();
 }
 
-// ─── Article writing ─────────────────────────────────────────────────────────
+// ─── Prompts ─────────────────────────────────────────────────────────────────
 
-const ARTICLE_PROMPT = (item: ScoredItem): string => `\
+const ARTICLE_PROMPT = (item: EnrichedItem): string => `\
 You are writing an article for wwwatch, a daily AI journal for product engineers.
 
-**Story:**
-Title: ${item.title}
-Source: ${item.url}
-${item.description ? `Context: ${item.description}` : '(No additional context)'}
+**SOURCE MATERIAL (the ONLY basis for your article):**
+${item.sourceMaterial.content}
 
-**Instructions:**
+**Original story URL:** ${item.url}
+
+**CRITICAL CONSTRAINT — SOURCE-ONLY WRITING:**
+You MUST write ONLY from the source material above. Hard rules:
+- Do NOT add details from your training knowledge that are absent from the source.
+- If a detail is missing (supported models, exact benchmark scores, pricing, version numbers), either omit it or write exactly what the source says. Do NOT illustrate with examples not in the source.
+- If the source says "model-agnostic" — write "model-agnostic". Do NOT list GPT-4o and Claude 3.5 Sonnet. That is fabrication.
+- If the source is vague about a number — stay vague or omit. A plausible-sounding invented number is worse than no number.
+- Every specific claim in your article must be directly traceable to a sentence in the source above.
+
+**Writing instructions:**
 Write a 300-500 word article in English markdown. Requirements:
 - Lead with what changed and why it matters for builders — no "In this article" preamble
-- Include specific numbers (benchmarks, pricing, speed, sizes) if available in the context
-- Cite the source inline as a markdown link
+- Include specific numbers only if present in the source (benchmarks, pricing, speeds)
+- Cite the source inline as a markdown link using the original URL
 - End with a concrete implication: what should a developer do with this today?
-- Direct tone, short sentences — product engineer talking to product engineers
+- Direct tone, short sentences — product engineer to product engineer
 - No bullet-point summaries at the top
 
 **Respond with ONLY this JSON object (no code fence, no preamble):**
@@ -105,24 +111,28 @@ Categories: coding_agent | framework | infra_api | research | tool | funding | s
 - eval: Benchmarks, evaluations, model comparisons
 - ops: Observability, cost management, deployment, governance`;
 
-const INTRO_PROMPT = (day: string, articles: NewArticle[]): string => `\
+// Correction v3.1: intro generated LAST, from final article summaries only.
+// It must not reference anything not present in the final articles.
+const INTRO_PROMPT = (day: string, summaries: Array<{ title: string; summary: string; category: string }>): string => `\
 Write a 2-3 sentence intro for today's wwwatch edition (${day}).
 
-Today's issue covers:
-${articles.map((a) => `- ${a.title} [${a.category}]`).join('\n')}
+**Today's articles (the ONLY source you may reference):**
+${summaries.map((a) => `- [${a.category}] ${a.title}: ${a.summary}`).join('\n')}
 
 Requirements:
+- Reference only content present in the articles above — do NOT mention models, tools, or events not listed.
 - Direct, no hype — for product engineers short on time
-- Reference 1-2 specific highlights from today's articles
+- Pick 1-2 specific highlights that stand out today
 - No "Here's what happened today" openers
-- End with what builders should pay close attention to
 - ~80-100 words, in English
 
 Respond with just the intro text (no JSON, no heading).`;
 
+// ─── Per-article writer ───────────────────────────────────────────────────────
+
 async function writeArticle(
   client: Anthropic,
-  item: ScoredItem,
+  item: EnrichedItem,
   day: string,
 ): Promise<{ article: NewArticle | null; inputTokens: number; outputTokens: number }> {
   const response = await client.messages
@@ -167,7 +177,11 @@ async function writeArticle(
     category,
     summary,
     bodyMd,
-    sources: [{ url: item.url, source: item.source, title: item.title }],
+    sources: item.sourceMaterial.urls.map((url) => ({
+      url,
+      source: item.source,
+      title: item.title,
+    })),
     fingerprint: item.fingerprint,
     score: item.score,
   };
@@ -178,11 +192,14 @@ async function writeArticle(
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 /**
- * Writes articles for each scored item, then generates the edition intro.
- * Uses Sonnet for all calls — per CONVENTIONS §Pipeline règle 9.
- * Failed articles are logged and skipped (partial success is acceptable).
+ * Writes articles for each enriched item, then generates the edition intro.
+ *
+ * Correction v3.1:
+ * - Each article is written ONLY from its fetched source_material.
+ * - The intro is generated LAST from the final article summaries.
+ *   It must not reference anything outside the produced articles.
  */
-export async function writeArticles(items: ScoredItem[], day: string): Promise<WriteResult> {
+export async function writeArticles(items: EnrichedItem[], day: string): Promise<WriteResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY missing');
 
@@ -194,15 +211,17 @@ export async function writeArticles(items: ScoredItem[], day: string): Promise<W
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i]!;
-    // Throttle to respect the 30k TPM rate limit (see INTER_CALL_SLEEP_MS comment).
     if (i > 0) await sleep(INTER_CALL_SLEEP_MS);
+
     try {
       const { article, inputTokens, outputTokens } = await writeArticle(client, item, day);
       totalInput += inputTokens;
       totalOutput += outputTokens;
       if (article) {
         articles.push(article);
-        console.log(`[writer] "${article.slug}" [${article.category}] — ${inputTokens}in/${outputTokens}out`);
+        console.log(
+          `[writer] "${article.slug}" [${article.category}] — ${inputTokens}in/${outputTokens}out`,
+        );
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -211,25 +230,33 @@ export async function writeArticles(items: ScoredItem[], day: string): Promise<W
     }
   }
 
-  // Generate the edition intro from the articles we actually produced.
+  // Correction v3.1: generate intro LAST, from the summaries of the articles
+  // we actually produced. Never from raw items or in parallel with article writes.
   let introMd = '';
   if (articles.length > 0) {
+    await sleep(INTER_CALL_SLEEP_MS);
     try {
+      const summaries = articles.map((a) => ({
+        title: a.title,
+        summary: a.summary,
+        category: a.category,
+      }));
       const introResponse = await client.messages
         .stream({
           model: MODEL,
           max_tokens: 256,
-          messages: [{ role: 'user', content: INTRO_PROMPT(day, articles) }],
+          messages: [{ role: 'user', content: INTRO_PROMPT(day, summaries) }],
         })
         .finalMessage();
       introMd = extractText(introResponse.content);
       totalInput += introResponse.usage.input_tokens;
       totalOutput += introResponse.usage.output_tokens;
-      console.log(`[writer] intro — ${introResponse.usage.input_tokens}in/${introResponse.usage.output_tokens}out`);
+      console.log(
+        `[writer] intro — ${introResponse.usage.input_tokens}in/${introResponse.usage.output_tokens}out`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[writer] intro failed: ${msg}`);
-      // Intro is non-critical — edition can publish without it.
     }
   }
 

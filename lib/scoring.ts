@@ -8,8 +8,6 @@ export type ScoredItem = Omit<RawItem, 'score'> & {
 const TOP_N = 20;
 
 // ─── Authority weights ────────────────────────────────────────────────────────
-// Role 2 primary sources (official changelogs/blogs) get full authority.
-// Catch-alls: rss_* → 0.75, reddit_* → 0.4, default → 0.4.
 
 const AUTHORITY: Record<string, number> = {
   hacker_news: 0.6,
@@ -29,34 +27,70 @@ function getAuthority(source: string): number {
   return 0.4;
 }
 
-// ─── Sub-score functions ──────────────────────────────────────────────────────
+// ─── Event freshness ──────────────────────────────────────────────────────────
+//
+// Correction v3.1: "event_freshness" is NOT just recency. It answers:
+// "Is there a datable event (release, version, funding, incident, breaking
+// change, announcement) in the last 7 days?" A popular but static GitHub
+// repo without a recent event scores low even at 100k stars.
+//
+// Non-GitHub sources (HN, Reddit, HF, RSS) ARE events by construction —
+// they are freshly-posted links or papers. For those, freshness = recency.
+// GitHub repos require an explicit event signal in title/description.
+
+// Regex that signals a specific version/release event in the title or description.
+// "\bnew \w+\b" removed — too broad (any "new framework for X" would match,
+// defeating the anti-static-repo heuristic for GitHub items).
+const EVENT_KEYWORD_RE =
+  /\bv\d|\brelease\b|\blaunch(es|ed|ing)?\b|\bannounce(s|d|ment)?\b|\bintroduce(s|d)?\b|\bship(s|ped|ping)?\b|\bbreaking\b|\bupdate\b|\d+\.\d+/i;
+
+function eventFreshnessScore(item: RawItem): number {
+  const ageHours = (Date.now() - new Date(item.published_at).getTime()) / 3_600_000;
+
+  if (item.source !== 'github') {
+    // HN / Reddit / HF / RSS = events by nature. 48h decay window.
+    return Math.max(0, 1 - ageHours / 48);
+  }
+
+  // GitHub: check for an explicit event signal in title + description.
+  const text = `${item.title} ${item.description ?? ''}`;
+  const hasEvent = EVENT_KEYWORD_RE.test(text);
+
+  if (!hasEvent) {
+    // Established repo without a recent event: penalise heavily.
+    // 7-day window (repos get noticed later), ×0.25 ceiling.
+    return Math.max(0, 1 - ageHours / 168) * 0.25;
+  }
+
+  // Repo with an event signal: 7-day window, no penalty.
+  return Math.max(0, 1 - ageHours / 168);
+}
+
+// ─── Engagement ───────────────────────────────────────────────────────────────
+//
+// Correction v3.1: use log1p to cap the outsized influence of mega-repos.
+// log1p(187_000) / log1p(10_000) ≈ 1.3 → capped at 1.0.
+// A 10k-star repo and a 180k-star repo get the same engagement score.
 
 function engagementScore(item: RawItem): number {
   switch (item.source) {
     case 'hacker_news':
-      return Math.min((item.upvotes ?? 0) / 500, 1);
+      return Math.min(Math.log1p(item.upvotes ?? 0) / Math.log1p(500), 1);
     case 'github':
-      // Total stars (GitHub has no public "stars today" API).
-      return Math.min((item.stars ?? 0) / 50_000, 1);
+      return Math.min(Math.log1p(item.stars ?? 0) / Math.log1p(10_000), 1);
     case 'hugging_face':
       return Math.min((item.upvotes ?? 0) / 200, 1);
     default:
       if (item.source.startsWith('reddit_'))
-        return Math.min((item.upvotes ?? 0) / 500, 1);
+        return Math.min(Math.log1p(item.upvotes ?? 0) / Math.log1p(500), 1);
       if (item.source.startsWith('rss_'))
-        // Primary sources have no engagement signal — default to mid.
-        return 0.5;
+        return 0.5; // primary sources have no engagement signal — default mid
       return 0.3;
   }
 }
 
-function freshnessScore(publishedAt: string): number {
-  const ageHours = (Date.now() - new Date(publishedAt).getTime()) / 3_600_000;
-  // Linear decay: 0h → 1.0, 48h → 0.0.
-  return Math.max(0, 1 - ageHours / 48);
-}
+// ─── Keyword relevance ────────────────────────────────────────────────────────
 
-// Keywords that signal agentic AI relevance.
 const AGENTIC_KEYWORDS = [
   'agent', 'agentic', 'llm', 'gpt', 'claude', 'gemini', 'anthropic',
   'openai', 'copilot', 'rag', 'reasoning', 'fine-tun', 'benchmark',
@@ -66,16 +100,23 @@ const AGENTIC_KEYWORDS = [
 function keywordScore(item: RawItem): number {
   const text = `${item.title} ${item.description ?? ''}`.toLowerCase();
   const hits = AGENTIC_KEYWORDS.filter((kw) => text.includes(kw)).length;
-  // Cap at 3 keyword matches — diminishing returns beyond that.
   return Math.min(hits / 3, 1);
 }
 
+// ─── Composite score ──────────────────────────────────────────────────────────
+//
+// v3.1 formula: event_freshness×0.45 + authority×0.25 + engagement×0.20 + keywords×0.10
+// (was: engagement×0.4 + freshness×0.3 + authority×0.2 + keywords×0.1)
+//
+// Rationale: the v3.0 dry-run returned 4/5 GitHub repos (popular but not news).
+// Bumping event_freshness to 0.45 and penalising eventless repos fixes the ordering.
+
 function baseScore(item: RawItem): number {
   return (
-    engagementScore(item) * 0.4 +
-    freshnessScore(item.published_at) * 0.3 +
-    getAuthority(item.source) * 0.2 +
-    keywordScore(item) * 0.1
+    eventFreshnessScore(item) * 0.45 +
+    getAuthority(item.source) * 0.25 +
+    engagementScore(item) * 0.20 +
+    keywordScore(item) * 0.10
   );
 }
 
@@ -86,8 +127,8 @@ function baseScore(item: RawItem): number {
  * bonus, removes inter-day duplicates, and returns the top N.
  *
  * Returns:
- * - `top` — items selected for writing (≤ TOP_N)
- * - `all` — every scored item, for persisting to raw_items (audit trail)
+ * - `top`  — items selected for writing (≤ TOP_N)
+ * - `all`  — every scored item, for persisting to raw_items (audit trail)
  */
 export function scoreItems(
   items: RawItem[],
@@ -136,6 +177,11 @@ export function scoreItems(
       `${fresh.length} fresh → top ${top.length} ` +
       `(${crossSourceFps.size} cross-source groups)`,
   );
+
+  // Log the top 5 for visibility in dry-run.
+  top.slice(0, 5).forEach((item, i) => {
+    console.log(`  #${i + 1} [${item.source}] score=${item.score} "${item.title.slice(0, 60)}"`);
+  });
 
   return { top, all };
 }
