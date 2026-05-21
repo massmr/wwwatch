@@ -1,5 +1,9 @@
 import { neon } from '@neondatabase/serverless';
 
+import type { RawItem } from './collectors/types';
+// Re-export so callers that only touch the DB layer don't need a second import.
+export type { RawItem } from './collectors/types';
+
 /** Returns a Neon SQL client (tagged template literals). */
 export function getSql() {
   const url = process.env.DATABASE_URL;
@@ -69,29 +73,13 @@ export type NewArticle = {
   score: number;
 };
 
-/**
- * Input for saving a raw collected item.
- * Re-exported from here for Phase 2 collectors to import.
- * TODO(maintainer, 2026-07-01): if collectors/types.ts grows, consolidate there.
- */
-export type RawItem = {
-  id: string;
-  source: string;
-  title: string;
-  url: string;
-  description?: string | null;
-  published_at: string; // ISO 8601
-  upvotes?: number | null;
-  stars?: number | null;
-  comments?: number | null;
-  score?: number | null;
-  fingerprint: string;
-};
-
 // ─── Row mappers ─────────────────────────────────────────────────────────────
 //
-// Neon returns Record<string,unknown> rows — the SDK has no per-query generics.
-// These helpers do the one-time cast; callers work with typed values.
+// Neon tagged templates return Record<string,unknown> rows — the SDK has no
+// per-query generics (intentional; see @neondatabase/serverless README).
+// All casts below are safe as long as the DB schema in neon/0002_pipeline.sql
+// is the authoritative source and is only modified via versioned migrations.
+// The `sources` field is jsonb — Neon deserialises it to a JS object automatically.
 
 function toEdition(r: Record<string, unknown>): Edition {
   return {
@@ -339,7 +327,7 @@ export async function saveRawItems(items: RawItem[]): Promise<void> {
 export async function getRecentFingerprints(days: number): Promise<string[]> {
   const sql = getSql();
   const rows = await sql`
-    -- days is typed number — string concat in SQL template is safe (no user input).
+    -- days is a typed number, not from user input — SQL parameterisation is safe.
     SELECT DISTINCT fingerprint FROM articles
     WHERE created_at > now() - (${days} || ' days')::interval
   `;
