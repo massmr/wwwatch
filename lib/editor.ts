@@ -63,7 +63,21 @@ export function checkArticles(
     // 4. Inter-day duplicate.
     if (recentFpSet.has(fp)) flags.push('duplicate_recent');
 
-    // 5. Unsourced factual detail (Correction v3.1).
+    // 5. Non-editorialized title: title was not rewritten and still matches
+    //    the raw source title. Exact signal of the PLAN_4 bug.
+    //    NOTE: strict equality after normalization — not fuzzy. Catches the
+    //    exact pattern (verbatim item.title copied to articles.title). A
+    //    near-match heuristic would reduce false negatives but adds complexity
+    //    not needed at MVP volume. Revisit if partial copies slip through.
+    const sourceTitle = article.sources[0]?.title;
+    if (sourceTitle) {
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      if (norm(article.title) === norm(sourceTitle)) {
+        flags.push('non_editorialized_title');
+      }
+    }
+
+    // 6. Unsourced factual detail (Correction v3.1).
     //    Extract specific claims from the article and check they appear in
     //    the source material. Heuristic — not exhaustive — but catches the
     //    most common fabrication pattern (model names, version numbers, %s).

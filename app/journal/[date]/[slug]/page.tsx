@@ -18,6 +18,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${article.title} — wwwatch`,
     description: article.summary,
+    openGraph: {
+      title: article.title,
+      description: article.summary,
+      type: 'article',
+      // article.day is YYYY-MM-DD; OG spec expects ISO 8601 datetime.
+      publishedTime: `${article.day}T00:00:00Z`,
+    },
+    twitter: {
+      card: 'summary',
+      title: article.title,
+      description: article.summary,
+    },
   };
 }
 

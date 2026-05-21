@@ -27,6 +27,7 @@ type TextBlock = { type: 'text'; text: string };
 
 type ArticleJson = {
   slug: string;
+  title: string;
   category: string;
   summary: string;
   body_md: string;
@@ -60,6 +61,16 @@ function extractJson(text: string): string {
   const end = text.lastIndexOf('}');
   if (start !== -1 && end > start) return text.slice(start, end + 1);
   return text;
+}
+
+/**
+ * Strips a leading heading line (e.g. "# Title\n\n") from markdown.
+ * Defensive guard: the prompt instructs the model to omit it, but the model
+ * may still include one. Title lives in articles.title, not in the body.
+ */
+function stripLeadingHeading(md: string): string {
+  // Remove first line if it is a heading, plus any trailing blank lines.
+  return md.replace(/^#{1,6}[^\n]*\n+/, '');
 }
 
 function extractText(content: Anthropic.Messages.ContentBlock[]): string {
@@ -98,7 +109,9 @@ Write a 300-500 word article in English markdown. Requirements:
 - No bullet-point summaries at the top
 
 **Respond with ONLY this JSON object (no code fence, no preamble):**
-{"slug":"kebab-case-max-60-chars","category":"one-of-the-categories-below","summary":"1-2 sentences for newsletter preview","body_md":"full article markdown"}
+{"slug":"kebab-case-max-60-chars","title":"Editorial headline — plain text, no markdown, max 12 words","category":"one-of-the-categories-below","summary":"1-2 sentences for newsletter preview","body_md":"full article markdown — do NOT start with a heading (no leading # or ##); the title is already rendered separately above the body"}
+
+The "title" must be an original editorial headline you wrote — never copy the source repo name, page title, or description verbatim.
 
 Categories: coding_agent | framework | infra_api | research | tool | funding | security | eval | ops
 - coding_agent: AI coding assistants, autonomous coding agents
@@ -156,11 +169,12 @@ async function writeArticle(
   }
 
   const slug = parsed.slug?.trim() || slugify(item.title);
-  const bodyMd = parsed.body_md?.trim();
+  const title = parsed.title?.trim();
+  const bodyMd = stripLeadingHeading(parsed.body_md?.trim() ?? '');
   const summary = parsed.summary?.trim();
   const category = parsed.category?.trim() ?? '';
 
-  if (!slug || !bodyMd || !summary || !category) {
+  if (!slug || !title || !bodyMd || !summary || !category) {
     console.error(`[writer] incomplete JSON for "${item.title.slice(0, 60)}"`);
     return { article: null, inputTokens, outputTokens };
   }
@@ -183,7 +197,7 @@ async function writeArticle(
   const article: NewArticle = {
     day,
     slug,
-    title: item.title,
+    title,
     category,
     summary,
     bodyMd,
