@@ -5,9 +5,9 @@ import './_styles/globals.scss';
 import styles from './layout.module.scss';
 
 export const metadata: Metadata = {
-  title: 'wwwatch — AI intel for product engineers',
+  title: 'wwwatch: AI intel for product engineers',
   description:
-    'A daily journal of what moved in AI — models, tools, research, funding. Curated for builders, not hype-followers.',
+    'A daily journal of what actually moved in AI. The models, tools, and releases that change what you ship this week. Five minutes. Sourced. No hype.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <footer className={styles.footer}>
           <div className={styles['footer-inner']}>
-            wwwatch — daily AI intel for product engineers. No ads.
+            wwwatch · Built by builders, for builders. No ads, no clickbait, no sponsored picks in the feed.
           </div>
         </footer>
       </body>

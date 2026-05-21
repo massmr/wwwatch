@@ -1,4 +1,4 @@
-// DB content changes on each publish — opt out of static pre-rendering.
+// DB content changes on each publish; opt out of static pre-rendering.
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
@@ -25,12 +25,11 @@ export default async function HomePage() {
           </div>
 
           <h1 className={styles.title}>
-            AI intel for <em>product engineers</em>.
+            The AI stack moves too fast to follow. <em>wwwatch follows it for you.</em>
           </h1>
 
           <p className={styles.subtitle}>
-            A daily journal of what moved in AI — models, tools, research, funding.
-            Curated for builders, not hype-followers.
+            A daily journal of what actually moved in AI. The models, tools, and releases that change what you ship this week. Five minutes. Sourced. No hype.
           </p>
 
           <div id="subscribe">
