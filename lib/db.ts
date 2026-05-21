@@ -3,17 +3,136 @@ import { neon } from '@neondatabase/serverless';
 /** Returns a Neon SQL client (tagged template literals). */
 export function getSql() {
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL manquant');
+  if (!url) throw new Error('DATABASE_URL missing');
   return neon(url);
 }
 
-/** Returns the list of active subscriber emails. */
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export type EditionStatus = 'draft' | 'published';
+
+export type Edition = {
+  day: string; // YYYY-MM-DD
+  lang: string;
+  intro_md: string;
+  status: EditionStatus;
+  article_count: number;
+  created_at: string;
+  published_at: string | null;
+};
+
+/** Closed set from CONVENTIONS §Modèle de données pipeline règle 5. */
+export type ArticleCategory =
+  | 'coding_agent'
+  | 'framework'
+  | 'infra_api'
+  | 'research'
+  | 'tool'
+  | 'funding'
+  | 'security'
+  | 'eval'
+  | 'ops';
+
+export type ArticleSource = {
+  url: string;
+  source: string;
+  title: string;
+};
+
+export type Article = {
+  id: string;
+  day: string; // YYYY-MM-DD
+  lang: string;
+  slug: string;
+  title: string;
+  category: ArticleCategory;
+  summary: string;
+  body_md: string;
+  sources: ArticleSource[];
+  fingerprint: string;
+  score: number;
+  status: EditionStatus;
+  created_at: string;
+};
+
+/** Input for inserting a new article (id and timestamps are DB-generated). */
+export type NewArticle = {
+  day: string;
+  lang?: string; // defaults to 'en' at DB level; set explicitly for future multilingual support
+  slug: string;
+  title: string;
+  category: ArticleCategory;
+  summary: string;
+  bodyMd: string;
+  sources: ArticleSource[];
+  fingerprint: string;
+  score: number;
+};
+
+/**
+ * Input for saving a raw collected item.
+ * Re-exported from here for Phase 2 collectors to import.
+ * TODO(maintainer, 2026-07-01): if collectors/types.ts grows, consolidate there.
+ */
+export type RawItem = {
+  id: string;
+  source: string;
+  title: string;
+  url: string;
+  description?: string | null;
+  published_at: string; // ISO 8601
+  upvotes?: number | null;
+  stars?: number | null;
+  comments?: number | null;
+  score?: number | null;
+  fingerprint: string;
+};
+
+// ─── Row mappers ─────────────────────────────────────────────────────────────
+//
+// Neon returns Record<string,unknown> rows — the SDK has no per-query generics.
+// These helpers do the one-time cast; callers work with typed values.
+
+function toEdition(r: Record<string, unknown>): Edition {
+  return {
+    day: r['day'] as string,
+    lang: r['lang'] as string,
+    intro_md: r['intro_md'] as string,
+    status: r['status'] as EditionStatus,
+    article_count: r['article_count'] as number,
+    created_at: r['created_at'] as string,
+    published_at: (r['published_at'] as string | null) ?? null,
+  };
+}
+
+function toArticle(r: Record<string, unknown>): Article {
+  return {
+    id: r['id'] as string,
+    day: r['day'] as string,
+    lang: r['lang'] as string,
+    slug: r['slug'] as string,
+    title: r['title'] as string,
+    category: r['category'] as ArticleCategory,
+    summary: r['summary'] as string,
+    body_md: r['body_md'] as string,
+    // Neon returns jsonb columns as parsed JS values — no JSON.parse needed.
+    sources: r['sources'] as ArticleSource[],
+    fingerprint: r['fingerprint'] as string,
+    score: r['score'] as number,
+    status: r['status'] as EditionStatus,
+    created_at: r['created_at'] as string,
+  };
+}
+
+// ─── Subscriber functions (pre-existing) ─────────────────────────────────────
+
+/** Returns all active subscriber emails. */
 export async function getActiveSubscribers(): Promise<string[]> {
   const sql = getSql();
   const rows = await sql`
     SELECT email FROM public.subscribers WHERE status = 'active'
   `;
-  // email is NOT NULL in schema — Neon rows are plain objects typed as Record<string,unknown>.
+  // email is NOT NULL in schema — cast is safe.
   return rows.map((r) => r['email'] as string);
 }
 
@@ -27,12 +146,6 @@ export async function upsertSubscriber(email: string): Promise<void> {
   `;
 }
 
-type LogBriefOpts = {
-  subject: string;
-  markdown: string;
-  recipientCount: number;
-};
-
 /** Sets a subscriber's status to 'unsubscribed'. No-ops if email not found. */
 export async function deactivateSubscriber(email: string): Promise<void> {
   const sql = getSql();
@@ -43,6 +156,12 @@ export async function deactivateSubscriber(email: string): Promise<void> {
   `;
 }
 
+type LogBriefOpts = {
+  subject: string;
+  markdown: string;
+  recipientCount: number;
+};
+
 /** Logs a sent brief to the DB. Swallows errors to avoid blocking the send. */
 export async function logBrief(opts: LogBriefOpts): Promise<void> {
   const sql = getSql();
@@ -52,6 +171,177 @@ export async function logBrief(opts: LogBriefOpts): Promise<void> {
       VALUES (${opts.subject}, ${opts.markdown}, ${opts.recipientCount})
     `;
   } catch (err) {
-    console.error('[db] Impossible de logger le brief :', err);
+    console.error('[db] logBrief failed:', err);
   }
+}
+
+// ─── Pipeline functions ───────────────────────────────────────────────────────
+
+/**
+ * Upserts an edition row for the given day.
+ * On conflict, updates intro_md and article_count only — status is never
+ * overwritten here (use publishEdition for status transitions).
+ */
+export async function upsertEdition(opts: {
+  day: string;
+  introMd: string;
+  articleCount: number;
+}): Promise<void> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO editions (day, intro_md, article_count)
+    VALUES (${opts.day}, ${opts.introMd}, ${opts.articleCount})
+    ON CONFLICT (day) DO UPDATE
+      SET intro_md      = ${opts.introMd},
+          article_count = ${opts.articleCount}
+  `;
+}
+
+/**
+ * Inserts articles for an edition. Idempotent: (day, slug) conflicts are
+ * silently skipped, so daily.ts can be re-run safely.
+ */
+export async function insertArticles(articles: NewArticle[]): Promise<void> {
+  const sql = getSql();
+  for (const a of articles) {
+    await sql`
+      INSERT INTO articles
+        (day, lang, slug, title, category, summary, body_md, sources, fingerprint, score)
+      VALUES (
+        ${a.day},
+        ${a.lang ?? 'en'},
+        ${a.slug},
+        ${a.title},
+        ${a.category},
+        ${a.summary},
+        ${a.bodyMd},
+        ${JSON.stringify(a.sources)}::jsonb,
+        ${a.fingerprint},
+        ${a.score}
+      )
+      ON CONFLICT (day, slug) DO NOTHING
+    `;
+  }
+}
+
+/**
+ * Returns an edition with its articles, or null if not found.
+ * Works for both draft and published editions (caller checks status).
+ */
+export async function getEdition(
+  day: string
+): Promise<(Edition & { articles: Article[] }) | null> {
+  const sql = getSql();
+  const [editions, articles] = await Promise.all([
+    sql`SELECT * FROM editions WHERE day = ${day} LIMIT 1`,
+    sql`SELECT * FROM articles WHERE day = ${day} ORDER BY score DESC`,
+  ]);
+  if (editions.length === 0) return null;
+  return {
+    ...toEdition(editions[0] as Record<string, unknown>),
+    articles: articles.map((r) => toArticle(r as Record<string, unknown>)),
+  };
+}
+
+/** Returns a single article by day + slug, or null if not found. */
+export async function getArticle(day: string, slug: string): Promise<Article | null> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT * FROM articles WHERE day = ${day} AND slug = ${slug} LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return toArticle(rows[0] as Record<string, unknown>);
+}
+
+/** Returns all published editions in reverse-chronological order (no articles). */
+export async function listPublishedEditions(): Promise<Edition[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT * FROM editions WHERE status = 'published' ORDER BY day DESC
+  `;
+  return rows.map((r) => toEdition(r as Record<string, unknown>));
+}
+
+/** Returns the most recent published edition, or null. Used for "Today" nav. */
+export async function getLatestPublishedEdition(): Promise<Edition | null> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT * FROM editions WHERE status = 'published' ORDER BY day DESC LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return toEdition(rows[0] as Record<string, unknown>);
+}
+
+/**
+ * Publishes an edition: sets status='published' and published_at=now().
+ * No-ops if already published. Used by scripts/publish.ts.
+ */
+export async function publishEdition(day: string): Promise<void> {
+  const sql = getSql();
+  await sql`
+    UPDATE editions
+    SET status = 'published', published_at = now()
+    WHERE day = ${day} AND status = 'draft'
+  `;
+}
+
+/**
+ * Returns published articles from the 7-day window ending on (and including)
+ * `day`. Used by scripts/weekly.ts to compile the weekly brief.
+ */
+export async function getArticlesForWeek(day: string): Promise<Article[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT a.*
+    FROM articles a
+    JOIN editions e ON e.day = a.day
+    WHERE e.status = 'published'
+      AND a.day <= ${day}::date
+      AND a.day >  (${day}::date - INTERVAL '7 days')
+    ORDER BY a.score DESC
+  `;
+  return rows.map((r) => toArticle(r as Record<string, unknown>));
+}
+
+/**
+ * Bulk-upserts raw collected items. On conflict on `id`, the existing row is
+ * left unchanged — the pipeline can be re-run without duplicating items.
+ */
+export async function saveRawItems(items: RawItem[]): Promise<void> {
+  const sql = getSql();
+  for (const item of items) {
+    await sql`
+      INSERT INTO raw_items
+        (id, source, title, url, description, published_at,
+         upvotes, stars, comments, score, fingerprint)
+      VALUES (
+        ${item.id},
+        ${item.source},
+        ${item.title},
+        ${item.url},
+        ${item.description ?? null},
+        ${item.published_at},
+        ${item.upvotes ?? null},
+        ${item.stars ?? null},
+        ${item.comments ?? null},
+        ${item.score ?? null},
+        ${item.fingerprint}
+      )
+      ON CONFLICT (id) DO NOTHING
+    `;
+  }
+}
+
+/**
+ * Returns the fingerprints of all articles stored within the last `days` days.
+ * Used by the dedup check in scoring.ts to avoid re-writing the same story.
+ */
+export async function getRecentFingerprints(days: number): Promise<string[]> {
+  const sql = getSql();
+  const rows = await sql`
+    -- days is typed number — string concat in SQL template is safe (no user input).
+    SELECT DISTINCT fingerprint FROM articles
+    WHERE created_at > now() - (${days} || ' days')::interval
+  `;
+  return rows.map((r) => r['fingerprint'] as string);
 }
