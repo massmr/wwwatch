@@ -82,18 +82,17 @@ export async function collectReddit(): Promise<RawItem[]> {
       const post = child.data;
       if (post.score < MIN_SCORE) continue;
 
-      // For self-posts (discussions), use the full Reddit URL so readers
-      // land on the discussion thread rather than an empty link.
-      const articleUrl = post.is_self
-        ? `https://www.reddit.com${post.permalink}`
-        : post.url;
+      // Self-posts are discussions — no external URL to fetch, cannot be enriched.
+      // Only link posts (which point to an external article, paper, or announcement)
+      // are useful for the pipeline.
+      if (post.is_self) continue;
 
       items.push({
         id: `reddit_${post.id}`,
         source: `reddit_${subreddit.toLowerCase()}`,
         title: post.title,
-        url: articleUrl,
-        description: post.is_self ? post.selftext.slice(0, 300) || null : null,
+        url: post.url,
+        description: null,
         published_at: new Date(post.created_utc * 1000).toISOString(),
         upvotes: post.score,
         comments: post.num_comments,
