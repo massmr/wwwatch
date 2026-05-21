@@ -15,6 +15,7 @@
 import { collectAll } from '@/lib/collectors/index';
 import { scoreItems } from '@/lib/scoring';
 import { enrichItems } from '@/lib/enrich';
+import { selectEditorial } from '@/lib/selector';
 import { writeArticles } from '@/lib/writer';
 import { checkArticles } from '@/lib/editor';
 import {
@@ -56,8 +57,25 @@ async function main(): Promise<void> {
     return;
   }
 
+  // ─── Step 3.5: Editorial selection ──────────────────────────────────────
+  const selectionResult = await selectEditorial(enriched);
+  // Preserve the ranking order returned by the selector (strongest first).
+  const enrichedById = new Map(enriched.map((e) => [e.id, e]));
+  const selectedEnriched = selectionResult.selected
+    .map((s) => enrichedById.get(s.id))
+    .filter((e): e is (typeof enriched)[number] => e !== undefined);
+
+  if (selectedEnriched.length === 0) {
+    console.warn('[daily] selector kept 0 items — no articles to write');
+    if (DRY_RUN) {
+      console.log('[daily] DRY_RUN done — 0 articles selected, no DB writes');
+      return;
+    }
+    return;
+  }
+
   // ─── Step 4: Write ───────────────────────────────────────────────────────
-  const { articles, introMd, tokenUsage } = await writeArticles(enriched, TODAY);
+  const { articles, introMd, tokenUsage } = await writeArticles(selectedEnriched, TODAY);
   console.log(
     `[daily] writer: ${articles.length} articles, ` +
       `${tokenUsage.input}in/${tokenUsage.output}out tokens total`,
