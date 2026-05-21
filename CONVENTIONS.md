@@ -408,8 +408,10 @@ supabase/             ← schema SQL, migrations
 
 - **Modèle pinné** : `claude-opus-4-7`. Ne pas changer sans validation.
   Les évals de prompt ne sont pas portables entre modèles.
-- **Tool web_search** : version `web_search_20260209`. La version est dans
-  le contrat. Ne pas downgrade.
+- **Tool web_search** : version `web_search_20250305`. Le sandbox de
+  `web_search_20260209` causait des timeouts systématiques ("Detection timed out
+  after 25s") et ~24% de tokens supplémentaires. Revenir à `20260209` uniquement
+  si Anthropic stabilise le sandbox — valider sur un run complet avant de changer.
 - **Logguer les usages** : tokens in/out, durée, succès/échec. Permet de
   suivre les coûts.
 - **Le prompt est versionné dans le code** (`lib/prompt.ts`), pas dans
