@@ -122,7 +122,18 @@ Categories: coding_agent | framework | infra_api | research | tool | funding | s
 - funding: Rounds, acquisitions, business moves
 - security: Vulnerabilities, safety research, red-teaming, compliance
 - eval: Benchmarks, evaluations, model comparisons
-- ops: Observability, cost management, deployment, governance`;
+- ops: Observability, cost management, deployment, governance
+
+---
+Punctuation constraint. Never use em dashes (—) or en dashes (–) anywhere in the
+output. Rewrite instead with periods, commas, colons, or parentheses. Regular
+hyphens in compound words (open-source, multi-file), in command names (codex-app),
+and in slugs are fine and must be kept. For numeric ranges, write "to" instead of a
+dash (write "300 to 500 words", not "300–500"). Examples:
+  Avoid: The release, which shipped Tuesday — a big one — adds vision support.
+  Use:   The release shipped Tuesday. It is a big one, and it adds vision support.
+  Avoid: Pricing is $1–$9 per million tokens.
+  Use:   Pricing is $1 to $9 per million tokens.`;
 
 // Correction v3.1: intro generated LAST, from final article summaries only.
 // It must not reference anything not present in the final articles.
@@ -139,7 +150,18 @@ Requirements:
 - No "Here's what happened today" openers
 - ~80-100 words, in English
 
-Respond with just the intro text (no JSON, no heading).`;
+Respond with just the intro text (no JSON, no heading).
+
+---
+Punctuation constraint. Never use em dashes (—) or en dashes (–) anywhere in the
+output. Rewrite instead with periods, commas, colons, or parentheses. Regular
+hyphens in compound words (open-source, multi-file), in command names (codex-app),
+and in slugs are fine and must be kept. For numeric ranges, write "to" instead of a
+dash (write "300 to 500 words", not "300–500"). Examples:
+  Avoid: The release, which shipped Tuesday — a big one — adds vision support.
+  Use:   The release shipped Tuesday. It is a big one, and it adds vision support.
+  Avoid: Pricing is $1–$9 per million tokens.
+  Use:   Pricing is $1 to $9 per million tokens.`;
 
 // ─── Per-article writer ───────────────────────────────────────────────────────
 
