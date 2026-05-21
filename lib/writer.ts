@@ -5,6 +5,13 @@ import type { ScoredItem } from './scoring';
 
 const MODEL = 'claude-sonnet-4-6';
 
+// Writer calls use ~800-1500 input tokens each (no web_search).
+// 2s gap gives ~30 calls/min, safely under the 30k TPM free-tier limit.
+// TODO(maintainer, 2026-07-01): reduce or remove once on a higher usage tier.
+const INTER_CALL_SLEEP_MS = 2_000;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 // Closed set from CONVENTIONS §Modèle de données pipeline — must match DB CHECK constraint.
 const VALID_CATEGORIES: ReadonlyArray<NewArticle['category']> = [
   'coding_agent', 'framework', 'infra_api', 'research', 'tool',
@@ -185,7 +192,10 @@ export async function writeArticles(items: ScoredItem[], day: string): Promise<W
   let totalInput = 0;
   let totalOutput = 0;
 
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    // Throttle to respect the 30k TPM rate limit (see INTER_CALL_SLEEP_MS comment).
+    if (i > 0) await sleep(INTER_CALL_SLEEP_MS);
     try {
       const { article, inputTokens, outputTokens } = await writeArticle(client, item, day);
       totalInput += inputTokens;

@@ -8,6 +8,18 @@ const MODEL = 'claude-sonnet-4-6';
 // and ~24% token overhead — see lib/research.ts for the original investigation.
 const WEB_SEARCH_VERSION = 'web_search_20250305';
 
+// web_search results are fed back as tool_result blocks — actual token usage
+// is ~10-15k per call despite what usage.input_tokens reports (~2.3k visible).
+// 20s gap keeps us well under the 30k TPM free-tier limit (≤3 calls/min).
+// TODO(maintainer, 2026-07-01): reduce once the account is on a higher usage tier.
+const INTER_CALL_SLEEP_MS = 20_000;
+
+// Max items to enrich per run. Limits cost + run time while still adding
+// context where it matters most (top-scored items by definition).
+const MAX_ENRICHED = 8;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 // Items with a description longer than this are already self-sufficient.
 const MIN_DESCRIPTION_LENGTH = 200;
 
@@ -43,11 +55,14 @@ export async function enrichItems(items: ScoredItem[]): Promise<ScoredItem[]> {
   let skippedCount = 0;
 
   for (const item of items) {
-    if (!needsEnrichment(item)) {
+    if (!needsEnrichment(item) || enrichedCount >= MAX_ENRICHED) {
       skippedCount++;
       result.push(item);
       continue;
     }
+
+    // Throttle to respect the 30k TPM rate limit (web_search uses ~10-15k tokens/call).
+    if (enrichedCount > 0) await sleep(INTER_CALL_SLEEP_MS);
 
     try {
       const context = await fetchContext(client, item);
