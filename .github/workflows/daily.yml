@@ -1,0 +1,22 @@
+name: Daily pipeline
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC every day
+  workflow_dispatch: {}    # manual trigger for testing
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30    # enrich + write 20 articles ~ 3-5 min; generous headroom
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run daily
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
