@@ -39,7 +39,7 @@ function dateRangeLabel(endDay: string): string {
   const end = new Date(`${endDay}T00:00:00Z`);
   const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
   const startStr = `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}-${String(start.getUTCDate()).padStart(2, '0')}`;
-  return `${formatDay(startStr)} – ${formatDay(endDay)}`;
+  return `${formatDay(startStr)} to ${formatDay(endDay)}`;
 }
 
 function composeBrief(articles: Article[], siteUrl: string): string {
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
   // ─── 3. Compose brief from summaries (zero LLM cost) ─────────────────────
   const dateRange = dateRangeLabel(TODAY);
   const markdown = composeBrief(top, siteUrl);
-  const subject = `wwwatch — Week of ${dateRange}`;
+  const subject = `wwwatch: Week of ${dateRange}`;
   console.log(`[weekly] subject: "${subject}"`);
 
   if (DRY_RUN) {

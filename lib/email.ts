@@ -1,9 +1,9 @@
 import { createHmac } from 'node:crypto';
 
-import { render } from '@react-email/render';
+import { render } from 'emailmd';
 import { Resend } from 'resend';
 
-import { WeeklyBrief } from '../emails/weekly-brief';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
 
 /**
  * Builds an opaque unsubscribe token that encodes the email + HMAC.
@@ -11,17 +11,37 @@ import { WeeklyBrief } from '../emails/weekly-brief';
  * The email is NOT in the URL query string — only the opaque token is.
  */
 function buildUnsubscribeUrl(email: string): string {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
   const secret = process.env.UNSUBSCRIBE_SECRET;
   if (!secret) throw new Error('UNSUBSCRIBE_SECRET missing');
   const hmac = createHmac('sha256', secret).update(email).digest('hex');
   const token = Buffer.from(`${email}:${hmac}`).toString('base64url');
-  return `${siteUrl}/unsubscribe?token=${token}`;
+  return `${SITE_URL}/unsubscribe?token=${token}`;
+}
+
+/**
+ * Wraps the brief body markdown with a branded header and personalized footer.
+ * Replaces the former Header/Footer JSX components.
+ * No em/en dashes (CONVENTIONS §ponctuation).
+ */
+function wrapWithTemplate(bodyMarkdown: string, unsubscribeUrl: string): string {
+  return [
+    '# wwwatch',
+    '',
+    'AI intel for builders. Five minutes. Sourced. No hype.',
+    '',
+    '---',
+    '',
+    bodyMarkdown,
+    '',
+    '---',
+    '',
+    `wwwatch weekly brief. [wwwatch.dev](${SITE_URL}) · [Unsubscribe](${unsubscribeUrl})`,
+  ].join('\n');
 }
 
 export type SendResult = { sent: number; failed: number };
 
-/** Sends the brief HTML email to each address sequentially. */
+/** Sends the brief to each address sequentially, rendering per recipient for the unsubscribe URL. */
 export async function sendBriefToList(
   emails: string[],
   markdown: string,
@@ -31,24 +51,16 @@ export async function sendBriefToList(
   if (!apiKey) throw new Error('RESEND_API_KEY missing');
 
   const from = process.env.RESEND_FROM_EMAIL ?? 'brief@wwwatch.dev';
-
   const resend = new Resend(apiKey);
   let sent = 0;
   let failed = 0;
 
   for (const to of emails) {
     try {
-      // render() called per recipient to personalise the unsubscribe link.
-      // WeeklyBrief() is called as a function (not JSX) — lib/email.ts is a
-      // .ts file. Static email components with no hooks — safe pattern.
-      const html = await render(
-        WeeklyBrief({
-          markdown,
-          unsubscribeUrl: buildUnsubscribeUrl(to),
-          previewText: subject,
-        }),
-      );
-      const { error } = await resend.emails.send({ from, to, subject, html });
+      const fullMarkdown = wrapWithTemplate(markdown, buildUnsubscribeUrl(to));
+      const { html, text } = await render(fullMarkdown);
+
+      const { error } = await resend.emails.send({ from, to, subject, html, text });
       if (error) {
         console.error(`[email] FAIL ${to.slice(0, 4)}***:`, error);
         failed++;

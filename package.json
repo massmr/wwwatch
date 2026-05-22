@@ -12,13 +12,12 @@
     "weekly:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/weekly.ts",
     "publish": "tsx --env-file=.env.local scripts/publish.ts",
     "mirror:backfill": "tsx --env-file=.env.local scripts/mirror-backfill.ts",
-    "email:dev": "react-email dev --dir emails"
+    "email:preview": "DRY_RUN=1 tsx --env-file=.env.local scripts/weekly.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
     "@neondatabase/serverless": "^0.10.0",
-    "@react-email/components": "^1.0.12",
-    "@react-email/render": "^2.0.8",
+    "emailmd": "^0.3.2",
     "marked": "^15.0.0",
     "next": "16.2.6",
     "posthog-js": "^1.375.0",
@@ -34,7 +33,6 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/sanitize-html": "^2.16.1",
-    "react-email": "^6.1.5",
     "sass": "^1.77.0",
     "tsx": "^4.16.0",
     "typescript": "^5.5.3"
