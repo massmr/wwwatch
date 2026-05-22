@@ -341,6 +341,45 @@ export async function saveRawItems(items: RawItem[]): Promise<void> {
 }
 
 /**
+ * Returns minimal stubs (day, slug, created_at) for all published articles.
+ * Used by app/sitemap.ts to build the full sitemap without over-fetching.
+ */
+export async function listPublishedArticleStubs(): Promise<
+  { day: string; slug: string; created_at: string }[]
+> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT a.day, a.slug, a.created_at
+    FROM articles a
+    JOIN editions e ON e.day = a.day
+    WHERE e.status = 'published'
+    ORDER BY a.day DESC, a.score DESC
+  `;
+  return rows.map((r) => ({
+    day: toDateString(r['day']),
+    slug: r['slug'] as string,
+    created_at: r['created_at'] as string,
+  }));
+}
+
+/**
+ * Returns full articles from editions published within the last `hours` hours.
+ * Used by app/news-sitemap.xml/route.ts (Google News sitemap, 48h window).
+ */
+export async function getRecentPublishedArticles(hours: number): Promise<Article[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT a.*
+    FROM articles a
+    JOIN editions e ON e.day = a.day
+    WHERE e.status = 'published'
+      AND e.published_at > now() - (${hours} || ' hours')::interval
+    ORDER BY e.published_at DESC, a.score DESC
+  `;
+  return rows.map((r) => toArticle(r as Record<string, unknown>));
+}
+
+/**
  * Returns the fingerprints of all articles stored within the last `days` days.
  * Used by the dedup check in scoring.ts to avoid re-writing the same story.
  */
