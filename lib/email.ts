@@ -19,24 +19,42 @@ function buildUnsubscribeUrl(email: string): string {
 }
 
 /**
- * Wraps the brief body markdown with a branded header and personalized footer.
- * Replaces the former Header/Footer JSX components.
- * No em/en dashes (CONVENTIONS §ponctuation).
+ * Wraps the brief body with a branded header, footer, and wwwatch theme.
+ * Uses emailmd directives (:::header, :::footer) and YAML frontmatter
+ * for consistent brand colours matching the site (tokens.scss).
  */
-function wrapWithTemplate(bodyMarkdown: string, unsubscribeUrl: string): string {
-  return [
-    '# wwwatch',
-    '',
-    'AI intel for builders. Five minutes. Sourced. No hype.',
-    '',
+function wrapWithTemplate(bodyMarkdown: string, unsubscribeUrl: string, preheader: string): string {
+  const frontmatter = [
     '---',
-    '',
-    bodyMarkdown,
-    '',
+    `preheader: "${preheader}"`,
+    '# wwwatch brand theme — mirrors tokens.scss',
+    'background_color: "#fafaf9"',
+    'content_color: "#ffffff"',
+    'heading_color: "#111111"',
+    'body_color: "#6b7280"',
+    'button_color: "#111111"',
+    'button_text_color: "#ffffff"',
+    'brand_color: "#111111"',
+    'border_radius: "4px"',
     '---',
-    '',
-    `wwwatch weekly brief. [wwwatch.dev](${SITE_URL}) · [Unsubscribe](${unsubscribeUrl})`,
   ].join('\n');
+
+  const header = [
+    '::: header',
+    '# wwwatch',
+    'AI intel for builders',
+    ':::',
+  ].join('\n');
+
+  const footer = [
+    '::: footer',
+    `wwwatch weekly brief. [wwwatch.dev](${SITE_URL})`,
+    '',
+    `[Unsubscribe](${unsubscribeUrl})`,
+    ':::',
+  ].join('\n');
+
+  return [frontmatter, '', header, '', bodyMarkdown, '', footer].join('\n');
 }
 
 export type SendResult = { sent: number; failed: number };
@@ -57,7 +75,7 @@ export async function sendBriefToList(
 
   for (const to of emails) {
     try {
-      const fullMarkdown = wrapWithTemplate(markdown, buildUnsubscribeUrl(to));
+      const fullMarkdown = wrapWithTemplate(markdown, buildUnsubscribeUrl(to), subject);
       const { html, text } = await render(fullMarkdown);
 
       const { error } = await resend.emails.send({ from, to, subject, html, text });

@@ -55,7 +55,7 @@ function composeBrief(articles: Article[], siteUrl: string): string {
     lines.push('');
     lines.push(a.summary);
     lines.push('');
-    lines.push(`[Read the full article →](${articleUrl})`);
+    lines.push(`[Read the full article](${articleUrl}){button}`);
     lines.push('');
     lines.push('---');
     lines.push('');
