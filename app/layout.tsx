@@ -21,9 +21,7 @@ export const metadata: Metadata = {
     siteName: 'wwwatch',
     type: 'website',
     locale: 'en_US',
-    // Explicit og:image so WhatsApp/Telegram see a clean absolute URL
-    // rather than the hash-suffixed URL Next.js generates from the file convention.
-    images: [{ url: '/opengraph-image', width: 1200, height: 630, type: 'image/png' }],
+    images: [{ url: '/favicon.png', width: 500, height: 500, type: 'image/png' }],
   },
   twitter: {
     card: 'summary_large_image',

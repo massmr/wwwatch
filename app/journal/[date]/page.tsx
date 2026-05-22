@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       type: 'website',
       url: canonical,
-      images: [{ url: `${canonical}/opengraph-image`, width: 1200, height: 630 }],
+      images: [{ url: '/favicon.png', width: 500, height: 500 }],
     },
     twitter: {
       card: 'summary_large_image',

@@ -19,7 +19,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!article) return {};
 
   const canonical = `${SITE_URL}/journal/${date}/${slug}`;
-  const ogImageUrl = `${canonical}/opengraph-image`;
 
   return {
     title: `${article.title} — wwwatch`,
@@ -35,13 +34,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       publishedTime: `${article.day}T00:00:00+00:00`,
       authors: ['wwwatch'],
       section: article.category,
-      images: [{ url: ogImageUrl, width: 1200, height: 630 }],
+      images: [{ url: '/favicon.png', width: 500, height: 500 }],
     },
     twitter: {
-      card: 'summary_large_image',
+      card: 'summary',
       title: article.title,
       description: article.summary,
-      images: [ogImageUrl],
     },
   };
 }
@@ -55,13 +53,12 @@ export default async function ArticlePage({ params }: Props) {
   const bodyHtml = parseMarkdown(article.body_md);
 
   const canonical = `${SITE_URL}/journal/${date}/${slug}`;
-  const ogImageUrl = `${canonical}/opengraph-image`;
 
   const articleLd = newsArticleSchema({
     headline: article.title,
     description: article.summary,
     url: canonical,
-    ogImageUrl,
+    ogImageUrl: `${SITE_URL}/favicon.png`,
     datePublished: article.day,
     category: article.category,
   });
