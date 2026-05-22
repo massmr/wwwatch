@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 
 import './_styles/globals.scss';
 import styles from './layout.module.scss';
+import { PostHogPageView } from './PostHogPageView';
 
 export const metadata: Metadata = {
   title: 'wwwatch: AI intel for product engineers',
@@ -14,6 +16,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        {/* PostHogPageView is client-only and suspends during SSR — Suspense required. */}
+        <Suspense>
+          <PostHogPageView />
+        </Suspense>
+
         <header className={styles.header}>
           <div className={styles['header-inner']}>
             <Link href="/" className={styles.logo}>wwwatch</Link>
