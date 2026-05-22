@@ -370,6 +370,7 @@ export async function pushMirrorFiles(
   let parentSha: string | null = null;
   let baseTreeSha: string | null = null;
   let isFirstPush = false;
+  let refExists = false; // track whether main branch already exists
 
   const refRes = await fetch(`${base}/git/refs/heads/main`, {
     headers: {
@@ -380,6 +381,7 @@ export async function pushMirrorFiles(
   });
 
   if (refRes.ok) {
+    refExists = true;
     const refData = (await refRes.json()) as { object: { sha: string } };
     parentSha = refData.object.sha;
     // Get the tree SHA from the parent commit.
@@ -392,8 +394,38 @@ export async function pushMirrorFiles(
     });
     const commitData = (await commitRes.json()) as { tree: { sha: string } };
     baseTreeSha = commitData.tree.sha;
-  } else if (refRes.status === 404) {
+  } else if (refRes.status === 404 || refRes.status === 409) {
+    // 404: branch doesn't exist. 409: repo completely empty (no git objects yet).
+    // Git Data API (blobs/trees) requires at least one existing commit.
+    // Use the Contents API to create the very first file, which initialises the repo.
     isFirstPush = true;
+    const seedFile = files.find((f) => f.path === 'README.md') ?? files[0];
+    if (!seedFile) throw new Error('No files to push');
+
+    const seedRes = await fetch(`${base}/contents/${seedFile.path}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: 'init: create repository',
+        content: Buffer.from(seedFile.content, 'utf-8').toString('base64'),
+      }),
+    });
+    if (!seedRes.ok) {
+      const text = await seedRes.text().catch(() => '');
+      throw new Error(`Contents API init → ${seedRes.status}: ${text}`);
+    }
+    const seedData = (await seedRes.json()) as { commit: { sha: string; tree: { sha: string } } };
+    parentSha = seedData.commit.sha;
+    baseTreeSha = seedData.commit.tree.sha;
+    refExists = true; // Contents API created the main branch as part of the seed commit.
+    // Remove the seed file from the batch so it is updated (not re-created) by Git Data API.
+    files = files.filter((f) => f.path !== seedFile.path);
+    if (files.length === 0) return parentSha; // only one file total — done
   } else {
     const text = await refRes.text().catch(() => '');
     throw new Error(`GET refs/heads/main → ${refRes.status}: ${text}`);
@@ -430,13 +462,14 @@ export async function pushMirrorFiles(
   const commitSha = commit['sha'] as string;
 
   // 5. Update or create the main ref.
-  if (isFirstPush) {
+  if (refExists) {
+    await ghPatch(`${base}/git/refs/heads/main`, token, { sha: commitSha });
+  } else {
+    // Branch doesn't exist yet (non-empty repo, branch just not created).
     await ghPost(`${base}/git/refs`, token, {
       ref: 'refs/heads/main',
       sha: commitSha,
     });
-  } else {
-    await ghPatch(`${base}/git/refs/heads/main`, token, { sha: commitSha });
   }
 
   return commitSha;

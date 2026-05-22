@@ -11,6 +11,7 @@
     "weekly": "tsx --env-file=.env.local scripts/weekly.ts",
     "weekly:dry": "DRY_RUN=1 tsx --env-file=.env.local scripts/weekly.ts",
     "publish": "tsx --env-file=.env.local scripts/publish.ts",
+    "mirror:backfill": "tsx --env-file=.env.local scripts/mirror-backfill.ts",
     "email:dev": "react-email dev --dir emails"
   },
   "dependencies": {
