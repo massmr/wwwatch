@@ -32,13 +32,21 @@ export type OgFont = {
   weight: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
 };
 
+// Module-level cache: fonts are fetched once per function instance and reused
+// across requests. Eliminates the CDN round-trip on every OG image render,
+// which fixes WhatsApp/Telegram timeouts on warm requests.
+let fontCache: { interBold: ArrayBuffer | null; mono: ArrayBuffer | null } | null = null;
+
 /** Loads Inter Bold 700 and JetBrains Mono 400 from Bunny Fonts CDN.
- *  Returns null for either font if the fetch fails so the OG image still
- *  renders with a system font fallback instead of throwing. */
+ *  Caches the result for the lifetime of the serverless function instance.
+ *  Returns null for either font on fetch failure — OG image falls back to
+ *  system fonts instead of throwing. */
 export async function loadOgFonts(): Promise<{
   interBold: ArrayBuffer | null;
   mono: ArrayBuffer | null;
 }> {
+  if (fontCache) return fontCache;
+
   const [interBold, mono] = await Promise.all([
     fetch('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff')
       .then((r) => r.arrayBuffer())
@@ -47,7 +55,9 @@ export async function loadOgFonts(): Promise<{
       .then((r) => r.arrayBuffer())
       .catch((err) => { console.error('[og-utils] JetBrains Mono font fetch failed:', err); return null; }),
   ]);
-  return { interBold, mono };
+
+  fontCache = { interBold, mono };
+  return fontCache;
 }
 
 // ── Title truncation ──────────────────────────────────────────────────────────
