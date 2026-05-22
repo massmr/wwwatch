@@ -77,7 +77,7 @@ export async function sendWelcomeEmail(to: string): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY missing');
 
-  const from = process.env.RESEND_FROM_EMAIL ?? 'brief@wwwatch.dev';
+  const from = process.env.RESEND_FROM_WELCOME ?? 'hello@wwwatch.dev';
   const resend = new Resend(apiKey);
 
   const markdown = buildWelcomeMarkdown(buildUnsubscribeUrl(to));
