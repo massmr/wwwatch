@@ -83,6 +83,34 @@ async function main(): Promise<void> {
     console.log('[publish] Trigger a Vercel redeploy manually or set the hook URL to auto-revalidate');
   }
 
+  // Ping IndexNow so Bing/Yandex index the new articles immediately.
+  // Fire-and-forget — non-fatal if missing or if the call fails.
+  const indexNowKey = process.env.INDEXNOW_KEY;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
+  if (indexNowKey) {
+    try {
+      const urlList = edition.articles.map((a) => `${siteUrl}/journal/${day}/${a.slug}`);
+      const res = await fetch('https://api.indexnow.org/indexnow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({
+          host: new URL(siteUrl).hostname,
+          key: indexNowKey,
+          keyLocation: `${siteUrl}/${indexNowKey}.txt`,
+          urlList,
+        }),
+      });
+      if (res.ok || res.status === 202) {
+        console.log(`[publish] IndexNow: ${urlList.length} URL(s) submitted ✓`);
+      } else {
+        console.warn(`[publish] IndexNow returned HTTP ${res.status}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[publish] IndexNow failed (non-fatal): ${msg}`);
+    }
+  }
+
   console.log(`[publish] Done. Review at: /journal/${day}`);
 }
 
