@@ -7,6 +7,7 @@ import { SITE_URL } from '@/lib/site-url';
 
 import './_styles/globals.scss';
 import styles from './layout.module.scss';
+import { PostHogInit } from './PostHogInit';
 import { PostHogPageView } from './PostHogPageView';
 
 export const metadata: Metadata = {
@@ -45,7 +46,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(websiteSchema()) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(newsMediaOrgSchema()) }} />
 
-        {/* PostHogPageView is client-only and suspends during SSR — Suspense required. */}
+        {/* PostHogInit: initialises PostHog on first client render. */}
+        <PostHogInit />
+        {/* PostHogPageView suspends during SSR — Suspense required. */}
         <Suspense>
           <PostHogPageView />
         </Suspense>
