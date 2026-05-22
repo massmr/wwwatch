@@ -12,14 +12,55 @@
  * pages reflect the new edition. Configure this in Phase 6.
  */
 import { EDITION_PUBLISHED } from '@/lib/analytics-events';
-import { getEdition, publishEdition } from '@/lib/db';
+import { getEdition, listPublishedDates, publishEdition } from '@/lib/db';
+import { buildMirrorFiles, pushMirrorFiles, type MirrorArticle } from '@/lib/mirror';
 import { createPostHogServer } from '@/lib/posthog-server';
+
+const DRY_RUN = process.env.DRY_RUN === '1';
 
 const day = process.argv[2]?.trim();
 
 if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
   console.error('[publish] Usage: npm run publish -- YYYY-MM-DD');
   process.exit(1);
+}
+
+/**
+ * Generates and optionally pushes the GitHub mirror for a given day.
+ * Always non-fatal: any error is logged and swallowed.
+ * A missing GITHUB_MIRROR_TOKEN is silently skipped (mirror not configured).
+ */
+async function runMirror(date: string, dryRun: boolean): Promise<void> {
+  if (!process.env.GITHUB_MIRROR_TOKEN) return;
+  try {
+    // Re-fetch after publish to capture any articles added by a second pipeline run.
+    const fullEdition = await getEdition(date);
+    if (!fullEdition) return;
+
+    const allDates = await listPublishedDates();
+    const mirrorArticles: MirrorArticle[] = fullEdition.articles.map((a) => ({
+      slug: a.slug,
+      title: a.title,
+      summary: a.summary,
+      category: a.category,
+    }));
+    const files = buildMirrorFiles(date, fullEdition.intro_md, mirrorArticles, allDates);
+
+    if (dryRun) {
+      console.log('[mirror] DRY_RUN — markdown generated, not pushed');
+      for (const f of files) {
+        console.log(`[mirror] ${f.path} (${f.content.length} chars)`);
+        console.log(f.content.slice(0, 300) + (f.content.length > 300 ? '...' : ''));
+      }
+    } else {
+      const sha = await pushMirrorFiles(files, `edition ${date}`);
+      console.log(`[mirror] pushed — commit ${sha} ✓`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Non-fatal: site is published, mirror can be stale for one day.
+    console.warn(`[mirror] push failed (non-fatal): ${msg}`);
+  }
 }
 
 async function main(): Promise<void> {
@@ -31,6 +72,12 @@ async function main(): Promise<void> {
   }
 
   if (edition.status === 'published') {
+    if (DRY_RUN) {
+      // In DRY_RUN, skip all side-effects and only preview mirror output.
+      console.log(`[publish] ${day} already published — DRY_RUN: mirror preview only`);
+      await runMirror(day!, true);
+      return;
+    }
     console.warn(`[publish] ${day} is already published — nothing to do`);
     return;
   }
@@ -110,6 +157,9 @@ async function main(): Promise<void> {
       console.warn(`[publish] IndexNow failed (non-fatal): ${msg}`);
     }
   }
+
+  // Push GitHub mirror. Runs last; failure is non-fatal.
+  await runMirror(day!, DRY_RUN);
 
   console.log(`[publish] Done. Review at: /journal/${day}`);
 }

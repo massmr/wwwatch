@@ -282,6 +282,16 @@ export async function listPublishedEditions(): Promise<Edition[]> {
   return rows.map((r) => toEdition(r as Record<string, unknown>));
 }
 
+/** Returns all published edition dates (YYYY-MM-DD) in reverse-chronological order.
+ *  Used by the GitHub mirror to build navigation docs. */
+export async function listPublishedDates(): Promise<string[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT day FROM editions WHERE status = 'published' ORDER BY day DESC
+  `;
+  return rows.map((r) => toDateString(r['day']));
+}
+
 /** Returns the most recent published edition, or null. Used for "Today" nav. */
 export async function getLatestPublishedEdition(): Promise<Edition | null> {
   const sql = getSql();
