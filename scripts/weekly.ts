@@ -11,6 +11,8 @@
  *   npm run weekly:dry    # DRY_RUN=1 — logs output, no email sent
  *   DAY=2026-05-21 npm run weekly:dry  # override date for testing
  */
+import Anthropic from '@anthropic-ai/sdk';
+
 import { getActiveSubscribers, getArticlesForWeek, logBrief } from '@/lib/db';
 import { categoryLabel, sendBriefToList } from '@/lib/email';
 import { formatDay } from '@/lib/format';
@@ -37,6 +39,78 @@ const CATEGORY_LABELS: Record<string, string> = {
   eval: 'Evals',
   ops: 'Ops',
 };
+
+// ── Weekly intro prompt ───────────────────────────────────────────────────────
+
+const MODEL = 'claude-sonnet-4-6';
+
+function WEEKLY_INTRO_PROMPT(
+  dateRange: string,
+  articles: Array<{ title: string; summary: string; category: string }>,
+): string {
+  return `\
+Write a 2-3 sentence editorial intro for this week's wwwatch brief (${dateRange}).
+
+**This week's articles (the ONLY source you may reference):**
+${articles.map((a) => `- [${a.category}] ${a.title}: ${a.summary}`).join('\n')}
+
+Requirements:
+- Reference only content present in the articles above. Do NOT mention models, tools, or events not listed.
+- Direct, no hype — for product engineers short on time.
+- Identify 1-2 cross-cutting themes or notable contrasts across the week (not a list of articles).
+- No "Here's what happened this week" or "This week in AI" openers.
+- ~80-100 words, in English.
+
+Respond with just the intro text (no JSON, no heading).
+
+---
+Punctuation constraint. Never use em dashes (—) or en dashes (–) anywhere in the output.
+Rewrite instead with periods, commas, colons, or parentheses.
+Regular hyphens in compound words (open-source, multi-file) are fine.
+For numeric ranges, write "to" instead of a dash.`;
+}
+
+async function generateWeeklyIntro(
+  dateRange: string,
+  articles: Article[],
+): Promise<{ intro: string; inputTokens: number; outputTokens: number } | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.log('[weekly] ANTHROPIC_API_KEY missing — intro skipped');
+    return null;
+  }
+
+  try {
+    const client = new Anthropic({ apiKey, maxRetries: 0 });
+    const summaries = articles.map((a) => ({
+      title: a.title,
+      summary: a.summary,
+      category: a.category,
+    }));
+
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 256,
+      messages: [{ role: 'user', content: WEEKLY_INTRO_PROMPT(dateRange, summaries) }],
+    });
+
+    const intro = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n\n')
+      .trim();
+
+    return {
+      intro,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[weekly] intro generation failed (non-fatal): ${msg}`);
+    return null;
+  }
+}
 
 function dateRangeLabel(endDay: string): string {
   const end = new Date(`${endDay}T00:00:00Z`);
@@ -89,14 +163,27 @@ async function main(): Promise<void> {
     console.log(`  #${i + 1} [${a.category}] score=${a.score} "${a.title.slice(0, 60)}"`);
   });
 
-  // ─── 3. Compose brief from summaries (zero LLM cost) ─────────────────────
+  // ─── 3. Generate editorial intro ─────────────────────────────────────────
   const dateRange = dateRangeLabel(TODAY);
-  const markdown = composeBrief(top, siteUrl);
   const subject = `wwwatch: Week of ${dateRange}`;
   console.log(`[weekly] subject: "${subject}"`);
 
+  const introResult = await generateWeeklyIntro(dateRange, top);
+  if (introResult) {
+    console.log(
+      `[weekly] intro — ${introResult.inputTokens}in/${introResult.outputTokens}out tokens`,
+    );
+  }
+  const intro = introResult?.intro;
+
+  // ─── 4. Compose brief from summaries ─────────────────────────────────────
+  const markdown = composeBrief(top, siteUrl);
+
   if (DRY_RUN) {
     console.log('\n─── DRY_RUN OUTPUT ───────────────────────────────────────────\n');
+    if (intro) {
+      console.log('INTRO:\n' + intro + '\n');
+    }
     console.log(markdown);
     const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.log(`\n[weekly] DRY_RUN done in ${elapsed}s — no emails sent`);
@@ -119,7 +206,7 @@ async function main(): Promise<void> {
     console.log(`[weekly] sending to ${subscribers.length} subscriber(s)...`);
   }
 
-  const { sent, failed } = await sendBriefToList(subscribers, markdown, subject);
+  const { sent, failed } = await sendBriefToList(subscribers, markdown, subject, intro);
   console.log(`[weekly] sent=${sent} failed=${failed}`);
 
   // ─── 5. Log to briefs table (skipped in TEST_EMAIL mode) ─────────────────

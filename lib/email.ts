@@ -99,8 +99,9 @@ function buildNewsletterMarkdown(
   bodyMarkdown: string,
   unsubscribeUrl: string,
   subject: string,
+  intro?: string,
 ): string {
-  return [
+  const parts = [
     '---',
     `preheader: "${subject}"`,
     '---',
@@ -109,12 +110,21 @@ function buildNewsletterMarkdown(
     '',
     '---',
     '',
+  ];
+
+  if (intro) {
+    parts.push(intro, '', '---', '');
+  }
+
+  parts.push(
     bodyMarkdown,
     '',
     `[Read the full journal](${SITE_URL}/journal){button}`,
     '',
     footerBlock(unsubscribeUrl),
-  ].join('\n');
+  );
+
+  return parts.join('\n');
 }
 
 export type SendResult = { sent: number; failed: number };
@@ -124,6 +134,7 @@ export async function sendBriefToList(
   emails: string[],
   markdown: string,
   subject: string,
+  intro?: string,
 ): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY missing');
@@ -135,7 +146,7 @@ export async function sendBriefToList(
 
   for (const to of emails) {
     try {
-      const fullMarkdown = buildNewsletterMarkdown(markdown, buildUnsubscribeUrl(to), subject);
+      const fullMarkdown = buildNewsletterMarkdown(markdown, buildUnsubscribeUrl(to), subject, intro);
       const { html, text } = await render(fullMarkdown, { theme: WWWATCH_THEME });
 
       const { error } = await resend.emails.send({ from, to, subject, html, text });
