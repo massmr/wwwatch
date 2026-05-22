@@ -18,20 +18,11 @@
 }
 
 .logo {
-  display: flex;
-  align-items: center;
+  font-weight: 700;
+  font-size: var(--text-base);
+  letter-spacing: -0.02em;
   text-decoration: none;
-  flex-shrink: 0;
-}
-
-.logo-img {
-  height: 32px;
-  width: auto;
-  display: block;
-
-  @include mq.tablet {
-    height: 40px;
-  }
+  color: var(--color-fg);
 }
 
 .nav {

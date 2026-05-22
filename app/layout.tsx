@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense } from 'react';
 
@@ -52,16 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <header className={styles.header}>
           <div className={styles['header-inner']}>
-            <Link href="/" className={styles.logo}>
-              <Image
-                src="/logo.png"
-                alt="wwwatch"
-                width={120}
-                height={60}
-                priority
-                className={styles['logo-img']}
-              />
-            </Link>
+            <Link href="/" className={styles.logo}>wwwatch</Link>
             <nav className={styles.nav}>
               <Link href="/today" className={styles['nav-link']}>Today</Link>
               <Link href="/journal" className={styles['nav-link']}>Journal</Link>
