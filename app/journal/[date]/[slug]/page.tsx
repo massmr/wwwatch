@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const canonical = `${SITE_URL}/journal/${date}/${slug}`;
 
   return {
-    title: `${article.title} — wwwatch`,
+    title: `${article.title} · wwwatch`,
     description: article.summary,
     authors: [{ name: 'wwwatch', url: `${SITE_URL}/author/wwwatch` }],
     alternates: { canonical },

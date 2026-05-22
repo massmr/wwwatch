@@ -10,7 +10,7 @@ import { formatDay } from '@/lib/format';
 import styles from './page.module.scss';
 
 export const metadata: Metadata = {
-  title: 'Journal — wwwatch',
+  title: 'Journal · wwwatch',
   description: 'All editions of the wwwatch daily AI journal.',
 };
 

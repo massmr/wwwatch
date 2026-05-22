@@ -24,15 +24,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : null;
   const description = plainIntro
     ? plainIntro.slice(0, 160)
-    : `wwwatch AI journal for ${formatDay(date)} — ${edition.article_count} articles.`;
+    : `wwwatch AI journal for ${formatDay(date)}: ${edition.article_count} articles.`;
 
   return {
-    title: `${formatDay(date)} — wwwatch`,
+    title: `${formatDay(date)} · wwwatch`,
     description,
     alternates: { canonical },
     robots: { 'max-image-preview': 'large' },
     openGraph: {
-      title: `${formatDay(date)} — wwwatch`,
+      title: `${formatDay(date)} · wwwatch`,
       description,
       type: 'website',
       url: canonical,
@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${formatDay(date)} — wwwatch`,
+      title: `${formatDay(date)} · wwwatch`,
       description,
     },
   };

@@ -7,12 +7,12 @@ import { SITE_URL } from '@/lib/site-url';
 import styles from './page.module.scss';
 
 export const metadata: Metadata = {
-  title: 'wwwatch — wwwatch',
+  title: 'wwwatch · wwwatch',
   description:
     'wwwatch is the editor of wwwatch, a daily AI journal for builders. He reads every draft and publishes each edition.',
   alternates: { canonical: `${SITE_URL}/author/wwwatch` },
   openGraph: {
-    title: 'wwwatch — wwwatch',
+    title: 'wwwatch · wwwatch',
     description:
       'wwwatch is the editor of wwwatch, a daily AI journal for builders.',
     url: `${SITE_URL}/author/wwwatch`,

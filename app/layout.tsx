@@ -12,7 +12,7 @@ import { PostHogPageView } from './PostHogPageView';
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'wwwatch — AI intel for builders',
+    default: 'wwwatch · AI intel for builders',
     template: '%s',
   },
   description:
