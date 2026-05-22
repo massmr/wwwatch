@@ -12,7 +12,7 @@
  *   DAY=2026-05-21 npm run weekly:dry  # override date for testing
  */
 import { getActiveSubscribers, getArticlesForWeek, logBrief } from '@/lib/db';
-import { categoryAccent, sendBriefToList } from '@/lib/email';
+import { categoryLabel, sendBriefToList } from '@/lib/email';
 import { formatDay } from '@/lib/format';
 import type { Article } from '@/lib/db';
 
@@ -49,20 +49,17 @@ function composeBrief(articles: Article[], siteUrl: string): string {
   const lines: string[] = [];
 
   for (const a of articles) {
-    const label = CATEGORY_LABELS[a.category] ?? a.category;
     const articleUrl = `${siteUrl}/journal/${a.day}/${a.slug}`;
-    const { color, bg } = categoryAccent(a.category);
-
-    // Category chip: monospace label with accent colour, light matching bg.
-    lines.push(`::: callout compact color=${color} bg=${bg} border-radius=4px`);
-    lines.push(`\`${label.toUpperCase()}\``);
-    lines.push(':::');
+    // Structure mirrors site article cards: mono label / bold title / muted summary.
+    // Category in monospace inline code — muted grey, no per-category colours
+    // (matches --color-muted on the site; deliberately boring aesthetic).
+    lines.push(`\`${categoryLabel(a.category, CATEGORY_LABELS)}\``);
     lines.push('');
     lines.push(`**[${a.title}](${articleUrl})**`);
     lines.push('');
     lines.push(a.summary);
     lines.push('');
-    lines.push(`[Read](${articleUrl}){button}`);
+    lines.push(`[Read →](${articleUrl})`);
     lines.push('');
     lines.push('---');
     lines.push('');
