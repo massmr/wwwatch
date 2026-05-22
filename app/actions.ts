@@ -1,6 +1,7 @@
 'use server';
 
 import { upsertSubscriber } from '@/lib/db';
+import { sendWelcomeEmail } from '@/lib/email';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,12 +26,20 @@ export async function subscribe(
 
   try {
     await upsertSubscriber(email);
-    return {
-      status: 'ok',
-      message: 'Subscribed. Your first brief lands next Monday morning.',
-    };
   } catch (err) {
     console.error('[subscribe]', err);
     return { status: 'error', message: 'Server error, please try again later.' };
   }
+
+  // Send welcome email — non-fatal: subscriber is saved even if the email fails.
+  if (process.env.RESEND_API_KEY) {
+    sendWelcomeEmail(email).catch((err) => {
+      console.error('[subscribe] welcome email failed (non-fatal):', err);
+    });
+  }
+
+  return {
+    status: 'ok',
+    message: 'Subscribed. Your first brief lands next Monday morning.',
+  };
 }

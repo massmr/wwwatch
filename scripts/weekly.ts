@@ -12,8 +12,8 @@
  *   DAY=2026-05-21 npm run weekly:dry  # override date for testing
  */
 import { getActiveSubscribers, getArticlesForWeek, logBrief } from '@/lib/db';
+import { categoryAccent, sendBriefToList } from '@/lib/email';
 import { formatDay } from '@/lib/format';
-import { sendBriefToList } from '@/lib/email';
 import type { Article } from '@/lib/db';
 
 const DRY_RUN = process.env.DRY_RUN === '1';
@@ -51,11 +51,18 @@ function composeBrief(articles: Article[], siteUrl: string): string {
   for (const a of articles) {
     const label = CATEGORY_LABELS[a.category] ?? a.category;
     const articleUrl = `${siteUrl}/journal/${a.day}/${a.slug}`;
-    lines.push(`### ${label}: ${a.title}`);
+    const { color, bg } = categoryAccent(a.category);
+
+    // Category chip: monospace label with accent colour, light matching bg.
+    lines.push(`::: callout compact color=${color} bg=${bg} border-radius=4px`);
+    lines.push(`\`${label.toUpperCase()}\``);
+    lines.push(':::');
+    lines.push('');
+    lines.push(`**[${a.title}](${articleUrl})**`);
     lines.push('');
     lines.push(a.summary);
     lines.push('');
-    lines.push(`[Read the full article](${articleUrl}){button}`);
+    lines.push(`[Read](${articleUrl}){button}`);
     lines.push('');
     lines.push('---');
     lines.push('');
