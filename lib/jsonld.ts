@@ -5,9 +5,10 @@
  */
 
 import { SITE_URL } from './site-url';
+
 const AUTHOR_URL = `${SITE_URL}/author/wwwatch`;
-// Default OG image doubles as the organisation logo until a dedicated SVG is added.
-const ORG_LOGO_URL = `${SITE_URL}/opengraph-image`;
+const ORG_LOGO_URL = `${SITE_URL}/logo.png`;      // 1200×600 — public/logo.png
+const AUTHOR_PHOTO_URL = `${SITE_URL}/massimo.png`; // 500×500 — public/massimo.png
 
 // ── Serialisation ─────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export function newsArticleSchema(a: NewsArticleInput): object {
         '@type': 'ImageObject',
         url: ORG_LOGO_URL,
         width: 1200,
-        height: 630,
+        height: 600,
       },
     },
     articleSection: a.category,
@@ -111,7 +112,7 @@ export function newsMediaOrgSchema(): object {
       '@type': 'ImageObject',
       url: ORG_LOGO_URL,
       width: 1200,
-      height: 630,
+      height: 600,
     },
     // sameAs: add social profile URLs here when available.
   };
@@ -124,7 +125,7 @@ export function personSchema(): object {
     '@type': 'Person',
     name: 'wwwatch',
     url: AUTHOR_URL,
-    // image: add URL of profile photo once committed to public/.
+    image: { '@type': 'ImageObject', url: AUTHOR_PHOTO_URL, width: 500, height: 500 },
     // sameAs: ['https://github.com/maintainer', ...] — add social profiles.
     worksFor: {
       '@type': 'NewsMediaOrganization',

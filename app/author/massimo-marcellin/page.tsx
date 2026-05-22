@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 
 import { jsonLdString, personSchema } from '@/lib/jsonld';
 import { SITE_URL } from '@/lib/site-url';
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
     description:
       'wwwatch is the editor of wwwatch, a daily AI journal for builders.',
     url: `${SITE_URL}/author/wwwatch`,
+    images: [{ url: `${SITE_URL}/massimo.png`, width: 500, height: 500 }],
   },
 };
 
@@ -24,9 +26,14 @@ export default function AuthorPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(personSchema()) }} />
 
       <div className={styles.container}>
-        {/* TODO(maintainer): replace placeholder with real photo (1200px+, square,
-            neutral bg) deposited in public/ — see PLAN_7 §8. */}
-        <div className={styles.avatar} aria-hidden="true">M</div>
+        <Image
+          src="/massimo.png"
+          alt="wwwatch"
+          width={96}
+          height={96}
+          className={styles.avatar}
+          priority
+        />
 
         <h1 className={styles.name}>wwwatch</h1>
         <p className={styles.role}>Editor, wwwatch</p>
