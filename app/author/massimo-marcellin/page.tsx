@@ -40,7 +40,7 @@ export default function AuthorPage() {
 
         <div className={styles.bio}>
           <p>
-            wwwatch edits wwwatch — a daily AI journal for builders. He reads every
+            wwwatch edits wwwatch, a daily AI journal for builders. He reads every
             article draft, checks sources, and publishes each edition. The pipeline writes;
             the human decides what ships.
           </p>
