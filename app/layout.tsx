@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense } from 'react';
 
@@ -51,7 +52,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <header className={styles.header}>
           <div className={styles['header-inner']}>
-            <Link href="/" className={styles.logo}>wwwatch</Link>
+            <Link href="/" className={styles.logo}>
+              <Image
+                src="/logo.png"
+                alt="wwwatch"
+                width={120}
+                height={60}
+                priority
+                className={styles['logo-img']}
+              />
+            </Link>
             <nav className={styles.nav}>
               <Link href="/today" className={styles['nav-link']}>Today</Link>
               <Link href="/journal" className={styles['nav-link']}>Journal</Link>
@@ -65,7 +75,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <footer className={styles.footer}>
           <div className={styles['footer-inner']}>
-            wwwatch · Built by builders, for builders. No ads, no clickbait, no sponsored picks in the feed.
+            <div className={styles['footer-nav']}>
+              <Link href="/today" className={styles['footer-link']}>Today</Link>
+              <Link href="/journal" className={styles['footer-link']}>Journal</Link>
+              <Link href="/about" className={styles['footer-link']}>About</Link>
+              <Link href="/author/wwwatch" className={styles['footer-link']}>wwwatch</Link>
+            </div>
+            <p className={styles['footer-copy']}>
+              Built by builders, for builders. No ads, no clickbait, no sponsored picks in the feed.
+            </p>
           </div>
         </footer>
       </body>
