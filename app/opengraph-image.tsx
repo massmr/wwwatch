@@ -4,7 +4,7 @@
  */
 import { ImageResponse } from 'next/og';
 
-import { loadOgFonts } from '@/lib/og-utils';
+import { loadOgFonts, type OgFont } from '@/lib/og-utils';
 
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
@@ -12,7 +12,6 @@ export const contentType = 'image/png';
 export default async function Image() {
   const { interBold, mono } = await loadOgFonts();
 
-  type OgFont = { name: string; data: ArrayBuffer; style: 'normal' | 'italic'; weight: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 };
   const fonts: OgFont[] = [];
   if (interBold) fonts.push({ name: 'Inter', data: interBold, style: 'normal', weight: 700 });
   if (mono) fonts.push({ name: 'JetBrains Mono', data: mono, style: 'normal', weight: 400 });

@@ -4,7 +4,7 @@
  * No React / browser dependencies.
  */
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
+import { SITE_URL } from './site-url';
 const AUTHOR_URL = `${SITE_URL}/author/wwwatch`;
 // Default OG image doubles as the organisation logo until a dedicated SVG is added.
 const ORG_LOGO_URL = `${SITE_URL}/opengraph-image`;

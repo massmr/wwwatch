@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 
 import { jsonLdString, personSchema } from '@/lib/jsonld';
+import { SITE_URL } from '@/lib/site-url';
 
 import styles from './page.module.scss';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
 
 export const metadata: Metadata = {
   title: 'wwwatch — wwwatch',

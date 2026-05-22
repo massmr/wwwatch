@@ -24,6 +24,14 @@ export function accentForCategory(cat: string): string {
 
 // ── Font loading ──────────────────────────────────────────────────────────────
 
+/** Font type matching next/og's FontOptions (weight as literal union). */
+export type OgFont = {
+  name: string;
+  data: ArrayBuffer;
+  style: 'normal' | 'italic';
+  weight: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
+};
+
 /** Loads Inter Bold 700 and JetBrains Mono 400 from Bunny Fonts CDN.
  *  Returns null for either font if the fetch fails so the OG image still
  *  renders with a system font fallback instead of throwing. */
@@ -34,10 +42,10 @@ export async function loadOgFonts(): Promise<{
   const [interBold, mono] = await Promise.all([
     fetch('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff')
       .then((r) => r.arrayBuffer())
-      .catch(() => null),
+      .catch((err) => { console.error('[og-utils] Inter font fetch failed:', err); return null; }),
     fetch('https://fonts.bunny.net/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff')
       .then((r) => r.arrayBuffer())
-      .catch(() => null),
+      .catch((err) => { console.error('[og-utils] JetBrains Mono font fetch failed:', err); return null; }),
   ]);
   return { interBold, mono };
 }

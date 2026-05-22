@@ -60,9 +60,10 @@
     line-height: 1.7;
     color: var(--color-muted);
     margin-bottom: var(--space-4);
+  }
 
-    &:last-child {
-      margin-bottom: 0;
-    }
+  // Flatten to 2 nesting levels — CONVENTIONS §SCSS rule.
+  p:last-child {
+    margin-bottom: 0;
   }
 }

@@ -6,11 +6,10 @@ import { getArticle } from '@/lib/db';
 import { formatDay } from '@/lib/format';
 import { breadcrumbSchema, jsonLdString, newsArticleSchema } from '@/lib/jsonld';
 import { parseMarkdown } from '@/lib/markdown';
+import { SITE_URL } from '@/lib/site-url';
 
 import { SourceLink } from './SourceLink';
 import styles from './page.module.scss';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
 
 type Props = { params: Promise<{ date: string; slug: string }> };
 

@@ -3,12 +3,11 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 
 import { jsonLdString, newsMediaOrgSchema, websiteSchema } from '@/lib/jsonld';
+import { SITE_URL } from '@/lib/site-url';
 
 import './_styles/globals.scss';
 import styles from './layout.module.scss';
 import { PostHogPageView } from './PostHogPageView';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -6,8 +6,7 @@
 import type { MetadataRoute } from 'next';
 
 import { listPublishedArticleStubs, listPublishedEditions } from '@/lib/db';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
+import { SITE_URL } from '@/lib/site-url';
 
 // Revalidate every hour so new editions appear without a full redeploy.
 export const revalidate = 3600;

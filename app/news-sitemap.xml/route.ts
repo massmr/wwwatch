@@ -7,9 +7,8 @@
  * convention does not support the <news:news> XML extension.
  */
 import { getRecentPublishedArticles } from '@/lib/db';
-import { formatDay } from '@/lib/format';
+import { SITE_URL } from '@/lib/site-url';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
 
 // Revalidate every hour so fresh articles appear promptly.
 export const revalidate = 3600;

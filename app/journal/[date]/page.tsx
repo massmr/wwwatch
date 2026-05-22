@@ -5,11 +5,10 @@ import { notFound } from 'next/navigation';
 import { getEdition } from '@/lib/db';
 import { formatDay } from '@/lib/format';
 import { breadcrumbSchema, jsonLdString } from '@/lib/jsonld';
+import { SITE_URL } from '@/lib/site-url';
 
 import { ArticleCard } from './ArticleCard';
 import styles from './page.module.scss';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
 
 type Props = { params: Promise<{ date: string }> };
 
@@ -19,10 +18,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!edition) return {};
 
   const canonical = `${SITE_URL}/journal/${date}`;
-  const description =
-    edition.intro_md
-      ? edition.intro_md.slice(0, 160)
-      : `wwwatch AI journal for ${formatDay(date)} — ${edition.article_count} articles.`;
+  // Strip basic markdown syntax before using as meta description (plain text only).
+  const plainIntro = edition.intro_md
+    ? edition.intro_md.replace(/[*_#>`[\]]/g, '').replace(/\s+/g, ' ').trim()
+    : null;
+  const description = plainIntro
+    ? plainIntro.slice(0, 160)
+    : `wwwatch AI journal for ${formatDay(date)} — ${edition.article_count} articles.`;
 
   return {
     title: `${formatDay(date)} — wwwatch`,
