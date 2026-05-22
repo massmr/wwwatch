@@ -261,11 +261,23 @@ export async function getArticle(day: string, slug: string): Promise<Article | n
   return toArticle(rows[0] as Record<string, unknown>);
 }
 
-/** Returns all published editions in reverse-chronological order (no articles). */
+/**
+ * Returns all published editions in reverse-chronological order.
+ * article_count is computed from the articles table so it stays accurate
+ * when the daily pipeline re-runs and adds articles to an already-published
+ * edition (upsertEdition would otherwise overwrite the count with only the
+ * latest run's output).
+ */
 export async function listPublishedEditions(): Promise<Edition[]> {
   const sql = getSql();
   const rows = await sql`
-    SELECT * FROM editions WHERE status = 'published' ORDER BY day DESC
+    SELECT e.day, e.lang, e.intro_md, e.status, e.created_at, e.published_at,
+           COUNT(a.id)::int AS article_count
+    FROM editions e
+    LEFT JOIN articles a ON a.day = e.day
+    WHERE e.status = 'published'
+    GROUP BY e.day, e.lang, e.intro_md, e.status, e.created_at, e.published_at
+    ORDER BY e.day DESC
   `;
   return rows.map((r) => toEdition(r as Record<string, unknown>));
 }
