@@ -5,7 +5,9 @@
  */
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { SUBSCRIBE_COMPLETED } from '@/lib/analytics-events';
 import { upsertSubscriber } from '@/lib/db';
+import { createPostHogServer } from '@/lib/posthog-server';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -17,7 +19,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const raw = (body as Record<string, unknown>)?.['email'];
+  // Type-narrow body before accessing properties — req.json() returns unknown.
+  if (typeof body !== 'object' || body === null || !('email' in body)) {
+    return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
+  }
+
+  const raw = (body as { email: unknown }).email;
   if (typeof raw !== 'string') {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
   }
@@ -29,6 +36,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     await upsertSubscriber(email);
+
+    // Server-side capture: source of truth, bypasses ad-blockers.
+    // distinct_id is anonymous — no PII sent (PLAN_6 §6 rule 4).
+    if (process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) {
+      const ph = createPostHogServer();
+      ph.capture({ distinctId: 'anonymous', event: SUBSCRIBE_COMPLETED, properties: { success: true } });
+      await ph.shutdown();
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[subscribe] db error:', err);

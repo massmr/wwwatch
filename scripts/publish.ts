@@ -11,7 +11,9 @@
  * Optional: VERCEL_DEPLOY_HOOK_URL — if set, triggers a rebuild so 'use cache'
  * pages reflect the new edition. Configure this in Phase 6.
  */
+import { EDITION_PUBLISHED } from '@/lib/analytics-events';
 import { getEdition, publishEdition } from '@/lib/db';
+import { createPostHogServer } from '@/lib/posthog-server';
 
 const day = process.argv[2]?.trim();
 
@@ -39,6 +41,25 @@ async function main(): Promise<void> {
 
   await publishEdition(day!);
   console.log(`[publish] ${day} → published ✓`);
+
+  // Emit edition_published to PostHog. shutdown() is required — posthog-node
+  // buffers events and only flushes on explicit shutdown (PLAN_6 §6 rule 5).
+  if (process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) {
+    try {
+      const ph = createPostHogServer();
+      ph.capture({
+        distinctId: 'system',
+        event: EDITION_PUBLISHED,
+        properties: { day, article_count: edition.article_count },
+      });
+      await ph.shutdown();
+      console.log('[publish] edition_published → PostHog ✓');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Non-fatal: the edition is published even if PostHog capture fails.
+      console.warn(`[publish] PostHog capture failed (non-fatal): ${msg}`);
+    }
+  }
 
   // Trigger Vercel cache revalidation.
   // TODO(maintainer, 2026-06-01): set VERCEL_DEPLOY_HOOK_URL in Phase 6 (Vercel dashboard

@@ -6,6 +6,7 @@ import { getArticle } from '@/lib/db';
 import { formatDay } from '@/lib/format';
 import { parseMarkdown } from '@/lib/markdown';
 
+import { SourceLink } from './SourceLink';
 import styles from './page.module.scss';
 
 type Props = { params: Promise<{ date: string; slug: string }> };
@@ -68,14 +69,7 @@ export default async function ArticlePage({ params }: Props) {
             <ul className={styles['sources-list']}>
               {article.sources.map((s, i) => (
                 <li key={i}>
-                  <a
-                    href={s.url}
-                    className={styles['source-link']}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {s.url}
-                  </a>
+                  <SourceLink url={s.url} slug={slug} />
                 </li>
               ))}
             </ul>

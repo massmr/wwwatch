@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { getEdition } from '@/lib/db';
 import { formatDay } from '@/lib/format';
 
+import { ArticleCard } from './ArticleCard';
 import styles from './page.module.scss';
 
 type Props = { params: Promise<{ date: string }> };
@@ -41,18 +42,16 @@ export default async function EditionPage({ params }: Props) {
         )}
 
         <div className={styles.articles}>
-          {edition.articles.map((a) => (
-            <Link
+          {edition.articles.map((a, i) => (
+            <ArticleCard
               key={a.slug}
-              href={`/journal/${date}/${a.slug}`}
-              className={styles['article-card']}
-            >
-              <span className={styles['article-cat']}>{a.category}</span>
-              <div className={styles['article-content']}>
-                <div className={styles['article-title']}>{a.title}</div>
-                <p className={styles['article-summary']}>{a.summary}</p>
-              </div>
-            </Link>
+              date={date}
+              slug={a.slug}
+              category={a.category}
+              title={a.title}
+              summary={a.summary}
+              position={i}
+            />
           ))}
         </div>
       </div>
