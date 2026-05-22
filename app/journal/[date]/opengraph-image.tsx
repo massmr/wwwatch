@@ -1,6 +1,5 @@
 /**
- * Per-edition OG image — same dark card design, neutral accent.
- * Title: "wwwatch · {formatted date}".
+ * Per-edition OG image — 1200×630, center-safe layout.
  */
 import { ImageResponse } from 'next/og';
 
@@ -22,8 +21,7 @@ export default async function Image({ params }: Props) {
 
   const fontSans = fonts.some((f) => f.name === 'Inter') ? 'Inter, sans-serif' : 'sans-serif';
   const fontMono = fonts.some((f) => f.name === 'JetBrains Mono') ? 'JetBrains Mono, monospace' : 'monospace';
-  const accent = '#94A3B8'; // neutral slate for editions
-  const formattedDate = formatDay(date);
+  const accent = '#94A3B8';
 
   return new ImageResponse(
     (
@@ -34,43 +32,35 @@ export default async function Image({ params }: Props) {
           backgroundColor: '#0C0E12',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '60px 64px',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '60px 300px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <span style={{ fontFamily: fontMono, color: '#ECECEC', fontSize: 22, letterSpacing: 2 }}>
-            wwwatch
-          </span>
-          <span style={{ fontFamily: fontMono, color: accent, fontSize: 13, letterSpacing: 3 }}>
-            DAILY JOURNAL
-          </span>
-        </div>
+        <span style={{ fontFamily: fontMono, color: '#6B7280', fontSize: 18, letterSpacing: 3, marginBottom: 32 }}>
+          wwwatch
+        </span>
 
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ width: 48, height: 3, backgroundColor: accent, marginBottom: 24 }} />
-          <span
-            style={{
-              fontFamily: fontSans,
-              color: '#ECECEC',
-              fontSize: 62,
-              fontWeight: 700,
-              lineHeight: 1.12,
-              letterSpacing: -1,
-            }}
-          >
-            {formattedDate}
-          </span>
-        </div>
+        <div style={{ width: 48, height: 3, backgroundColor: accent, marginBottom: 24 }} />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <span style={{ fontFamily: fontMono, color: '#4B5563', fontSize: 16 }}>
-            {date}
-          </span>
-          <span style={{ fontFamily: fontMono, color: '#4B5563', fontSize: 16 }}>
-            wwwatch.dev
-          </span>
-        </div>
+        <span
+          style={{
+            fontFamily: fontSans,
+            color: '#ECECEC',
+            fontSize: 52,
+            fontWeight: 700,
+            lineHeight: 1.15,
+            letterSpacing: -1,
+            textAlign: 'center',
+            marginBottom: 28,
+          }}
+        >
+          {formatDay(date)}
+        </span>
+
+        <span style={{ fontFamily: fontMono, color: accent, fontSize: 13, letterSpacing: 3 }}>
+          DAILY JOURNAL
+        </span>
       </div>
     ),
     { ...size, fonts },

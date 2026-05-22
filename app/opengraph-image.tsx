@@ -1,6 +1,5 @@
 /**
- * Default site OG image — used for /, /about, /journal.
- * Same dark card design with brand tagline.
+ * Default site OG image — 1200×630, center-safe layout.
  */
 import { ImageResponse } from 'next/og';
 
@@ -18,7 +17,7 @@ export default async function Image() {
 
   const fontSans = fonts.some((f) => f.name === 'Inter') ? 'Inter, sans-serif' : 'sans-serif';
   const fontMono = fonts.some((f) => f.name === 'JetBrains Mono') ? 'JetBrains Mono, monospace' : 'monospace';
-  const accent = '#4ADE80'; // brand green for the default card
+  const accent = '#4ADE80';
 
   return new ImageResponse(
     (
@@ -29,43 +28,35 @@ export default async function Image() {
           backgroundColor: '#0C0E12',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '60px 64px',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '60px 300px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <span style={{ fontFamily: fontMono, color: '#ECECEC', fontSize: 22, letterSpacing: 2 }}>
-            wwwatch
-          </span>
-          <span style={{ fontFamily: fontMono, color: accent, fontSize: 13, letterSpacing: 3 }}>
-            AI JOURNAL
-          </span>
-        </div>
+        <span style={{ fontFamily: fontMono, color: '#6B7280', fontSize: 18, letterSpacing: 3, marginBottom: 32 }}>
+          wwwatch
+        </span>
 
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ width: 48, height: 3, backgroundColor: accent, marginBottom: 24 }} />
-          <span
-            style={{
-              fontFamily: fontSans,
-              color: '#ECECEC',
-              fontSize: 58,
-              fontWeight: 700,
-              lineHeight: 1.15,
-              letterSpacing: -1,
-            }}
-          >
-            The AI stack moves too fast to follow.
-          </span>
-        </div>
+        <div style={{ width: 48, height: 3, backgroundColor: accent, marginBottom: 24 }} />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <span style={{ fontFamily: fontMono, color: '#4B5563', fontSize: 16 }}>
-            Daily. Sourced. No hype.
-          </span>
-          <span style={{ fontFamily: fontMono, color: '#4B5563', fontSize: 16 }}>
-            wwwatch.dev
-          </span>
-        </div>
+        <span
+          style={{
+            fontFamily: fontSans,
+            color: '#ECECEC',
+            fontSize: 52,
+            fontWeight: 700,
+            lineHeight: 1.15,
+            letterSpacing: -1,
+            textAlign: 'center',
+            marginBottom: 28,
+          }}
+        >
+          The AI stack moves too fast to follow.
+        </span>
+
+        <span style={{ fontFamily: fontMono, color: '#6B7280', fontSize: 13, letterSpacing: 3 }}>
+          DAILY · SOURCED · NO HYPE
+        </span>
       </div>
     ),
     { ...size, fonts },

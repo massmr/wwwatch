@@ -1,6 +1,10 @@
 /**
- * Per-article OG image — typographic dark card, accent colour by category.
- * Design spec in PLAN_7 §1. Generated via next/og (Satori), PNG 1200×630.
+ * Per-article OG image — 1200×630, center-safe layout.
+ *
+ * WhatsApp crops to ~600×600 from the horizontal center of the image.
+ * All critical content (title, category, brand) lives in the center 600px
+ * so it survives both the full 1200×630 render (Twitter, Google Discover)
+ * and the square crop (WhatsApp, iMessage).
  */
 import { ImageResponse } from 'next/og';
 
@@ -19,7 +23,6 @@ export default async function Image({ params }: Props) {
     loadOgFonts(),
   ]);
 
-  // Return 404 if the article doesn't exist — same as the page route.
   if (!article) return new Response('Not found', { status: 404 });
 
   const title = truncateOgTitle(article.title);
@@ -43,46 +46,47 @@ export default async function Image({ params }: Props) {
           backgroundColor: '#0C0E12',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '60px 64px',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '60px 300px', // 300px H padding = 600px safe zone for WhatsApp crop
         }}
       >
-        {/* Top: wordmark left, category label right */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <span style={{ fontFamily: fontMono, color: '#ECECEC', fontSize: 22, letterSpacing: 2 }}>
-            wwwatch
-          </span>
-          <span style={{ fontFamily: fontMono, color: accent, fontSize: 13, letterSpacing: 3 }}>
-            {categoryLabel}
-          </span>
-        </div>
+        {/* Wordmark */}
+        <span style={{ fontFamily: fontMono, color: '#6B7280', fontSize: 18, letterSpacing: 3, marginBottom: 32 }}>
+          wwwatch
+        </span>
 
-        {/* Title block: accent filet + editorial headline */}
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ width: 48, height: 3, backgroundColor: accent, marginBottom: 24 }} />
-          <span
-            style={{
-              fontFamily: fontSans,
-              color: '#ECECEC',
-              fontSize: 62,
-              fontWeight: 700,
-              lineHeight: 1.12,
-              letterSpacing: -1,
-            }}
-          >
-            {title}
-          </span>
-        </div>
+        {/* Accent line */}
+        <div style={{ width: 48, height: 3, backgroundColor: accent, marginBottom: 24 }} />
 
-        {/* Bottom: date left, domain right */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <span style={{ fontFamily: fontMono, color: '#4B5563', fontSize: 16 }}>
-            {date}
-          </span>
-          <span style={{ fontFamily: fontMono, color: '#4B5563', fontSize: 16 }}>
-            wwwatch.dev
-          </span>
-        </div>
+        {/* Title — centred, dominant */}
+        <span
+          style={{
+            fontFamily: fontSans,
+            color: '#ECECEC',
+            fontSize: 52,
+            fontWeight: 700,
+            lineHeight: 1.15,
+            letterSpacing: -1,
+            textAlign: 'center',
+            marginBottom: 28,
+          }}
+        >
+          {title}
+        </span>
+
+        {/* Category pill */}
+        <span
+          style={{
+            fontFamily: fontMono,
+            color: accent,
+            fontSize: 13,
+            letterSpacing: 3,
+            textTransform: 'uppercase',
+          }}
+        >
+          {categoryLabel}
+        </span>
       </div>
     ),
     { ...size, fonts },
