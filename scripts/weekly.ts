@@ -18,6 +18,9 @@ import type { Article } from '@/lib/db';
 
 const DRY_RUN = process.env.DRY_RUN === '1';
 const TODAY = process.env.DAY ?? new Date().toISOString().slice(0, 10);
+// TEST_EMAIL=you@example.com sends to a single address instead of the full list.
+// Skips the briefs log so it doesn't pollute the audit trail.
+const TEST_EMAIL = process.env.TEST_EMAIL;
 
 // Top N articles to include in the weekly brief.
 const TOP_N = 7;
@@ -97,18 +100,28 @@ async function main(): Promise<void> {
   }
 
   // ─── 4. Fetch subscribers + send ─────────────────────────────────────────
-  const subscribers = await getActiveSubscribers();
+  const subscribers = TEST_EMAIL
+    ? [TEST_EMAIL]
+    : await getActiveSubscribers();
+
   if (subscribers.length === 0) {
     console.log('[weekly] no active subscribers — nothing to send');
     return;
   }
-  console.log(`[weekly] sending to ${subscribers.length} subscriber(s)...`);
+
+  if (TEST_EMAIL) {
+    console.log(`[weekly] TEST_EMAIL mode — sending to ${TEST_EMAIL} only`);
+  } else {
+    console.log(`[weekly] sending to ${subscribers.length} subscriber(s)...`);
+  }
 
   const { sent, failed } = await sendBriefToList(subscribers, markdown, subject);
   console.log(`[weekly] sent=${sent} failed=${failed}`);
 
-  // ─── 5. Log to briefs table ───────────────────────────────────────────────
-  if (sent > 0) {
+  // ─── 5. Log to briefs table (skipped in TEST_EMAIL mode) ─────────────────
+  if (TEST_EMAIL) {
+    console.log('[weekly] TEST_EMAIL mode — skipping briefs log');
+  } else if (sent > 0) {
     await logBrief({ subject, markdown, recipientCount: sent });
     console.log('[weekly] logged to briefs table');
   } else {
