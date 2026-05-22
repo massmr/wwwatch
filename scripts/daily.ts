@@ -144,7 +144,9 @@ async function main(): Promise<void> {
   console.log(`[daily] review at: /journal/${TODAY} (after publish.ts runs)`);
 }
 
-main().catch((err) => {
-  console.error('[daily] fatal:', err);
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('[daily] fatal:', err);
+    process.exit(1);
+  });

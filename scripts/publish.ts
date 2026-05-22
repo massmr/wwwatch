@@ -86,7 +86,9 @@ async function main(): Promise<void> {
   console.log(`[publish] Done. Review at: /journal/${day}`);
 }
 
-main().catch((err) => {
-  console.error('[publish] fatal:', err);
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('[publish] fatal:', err);
+    process.exit(1);
+  });
