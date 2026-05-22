@@ -1,11 +1,22 @@
 import type { Metadata } from 'next';
 
+import { jsonLdString, newsMediaOrgSchema, personSchema } from '@/lib/jsonld';
+
 import styles from './page.module.scss';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
+
 export const metadata: Metadata = {
-  title: 'About wwwatch · the daily AI brief for builders',
+  title: 'About wwwatch — the daily AI brief for builders',
   description:
     'Why wwwatch exists, who builds it, and how the pipeline works. A daily journal of what moved in AI, written from the source, reviewed by a human, no hype.',
+  alternates: { canonical: `${SITE_URL}/about` },
+  openGraph: {
+    title: 'About wwwatch — the daily AI brief for builders',
+    description:
+      'Why wwwatch exists, who builds it, and how the pipeline works. A daily journal of what moved in AI, written from the source, reviewed by a human, no hype.',
+    url: `${SITE_URL}/about`,
+  },
 };
 
 const PIPELINE_STEPS = [
@@ -19,6 +30,9 @@ const PIPELINE_STEPS = [
 export default function AboutPage() {
   return (
     <div className={styles.page}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(newsMediaOrgSchema()) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(personSchema()) }} />
+
       <div className={styles.container}>
         <h1 className={styles.title}>About wwwatch</h1>
 
@@ -47,10 +61,11 @@ export default function AboutPage() {
               round with no product consequence, it&apos;s out.
             </p>
             <p>
-              No summaries of summaries. Every article is written from the actual source, a
+              No summaries of summaries. Every article is written from the actual source — a
               release note, a paper, a changelog. It cites that source and reports only what the
               source says. When something is unknown, the article says so instead of guessing.
-              And every edition is read by a human before it goes live.
+              And every edition is read by a human before it goes live. Up to 6 to 8 articles per
+              day, no more — that&apos;s the editorial commitment.
             </p>
           </div>
         </div>

@@ -2,20 +2,45 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
 
+import { jsonLdString, newsMediaOrgSchema, websiteSchema } from '@/lib/jsonld';
+
 import './_styles/globals.scss';
 import styles from './layout.module.scss';
 import { PostHogPageView } from './PostHogPageView';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://wwwatch.dev';
+
 export const metadata: Metadata = {
-  title: 'wwwatch: AI intel for product engineers',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'wwwatch — AI intel for builders',
+    template: '%s',
+  },
   description:
-    'A daily journal of what actually moved in AI. The models, tools, and releases that change what you ship this week. Five minutes. Sourced. No hype.',
+    'A daily journal of what actually moved in AI. The models, tools, and releases that change what you build this week. Five minutes. Sourced. No hype.',
+  openGraph: {
+    siteName: 'wwwatch',
+    type: 'website',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    'max-image-preview': 'large',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
+        {/* Site-wide structured data */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(websiteSchema()) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(newsMediaOrgSchema()) }} />
+
         {/* PostHogPageView is client-only and suspends during SSR — Suspense required. */}
         <Suspense>
           <PostHogPageView />
