@@ -945,10 +945,10 @@ ANTHROPIC_API_KEY=sk-ant-...
 # Resend (envoi email)
 RESEND_API_KEY=re_...
 EMAIL_FROM=onboarding@resend.dev
-EMAIL_REPLY_TO=ton.email@gmail.com
+EMAIL_REPLY_TO=you@example.com
 
 # Pour tester sans envoyer aux abonnés
-DRY_RUN_EMAIL=ton.email@gmail.com
+DRY_RUN_EMAIL=you@example.com
 ```
 
 ---

@@ -204,10 +204,10 @@ ajoute la dimension **autorité** que l'étude juge critique pour un site de
 news IA :
 
 - [ ] **Byline nommée sur chaque article : wwwatch.** Le
-  rédacteur LLM écrit, Massimo relit et publie → la byline est Massimo
-  Marcellin. (Décidé : signature au nom réel, pas « wwwatch staff ». Note
-  d'exposition : wwwatch devient publiquement « le projet de Massimo
-  Marcellin », ce qui lie le projet à son nom — choix assumé.)
+  rédacteur LLM écrit, maintainer relit et publie → la byline est maintainer
+  maintainer. (Décidé : signature au nom réel, pas « wwwatch staff ». Note
+  d'exposition : wwwatch devient publiquement « le projet de maintainer
+  maintainer », ce qui lie le projet à son nom — choix assumé.)
 - [ ] **Page profil auteur** (`/author/wwwatch` ou similaire) :
   bio, photo, `sameAs` vers LinkedIn/GitHub/Twitter (désambiguïsation
   d'entité Google). Liée depuis chaque article via le champ `author` du
@@ -215,7 +215,7 @@ news IA :
 - [ ] **Photo de profil : vraie photo, pas un avatar.** Minimum 1200px de
   large, carrée, bien éclairée, fond neutre (pas un crop de selfie). C'est
   la même image qui sert de `image` dans le JSON-LD `Person` et de signal
-  d'entité pour Google. Fournie par Massimo, déposée en `public/`.
+  d'entité pour Google. Fournie par maintainer, déposée en `public/`.
 - [ ] **Engagement public du plafond 6-8/jour** sur l'About (moat éditorial
   vis-à-vis de la policy Google).
 - [ ] Vérifier que l'About décrit le pipeline et la relecture humaine

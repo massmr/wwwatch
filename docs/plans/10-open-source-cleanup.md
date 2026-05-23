@@ -314,7 +314,7 @@ Code applicatif :
 
 Assets :
 
-- [ ] `public/massimo.png` — **supprimer**.
+- [ ] `public/author.png` — **supprimer**.
 
 Commentaires (handle `maintainer` à neutraliser) :
 
@@ -328,10 +328,10 @@ Commentaires (handle `maintainer` à neutraliser) :
   `// TODO(maintainer, 2026-06-15)`.
 
 Settings locaux (non commit, mais à vérifier qu'aucun chemin absolu
-`/Users/massimomarcellin/...` ne fuit en clair dans un fichier commité) :
+`/Users/<user>/...` ne fuit en clair dans un fichier commité) :
 
 - [ ] `.claude/settings.local.json:27` contient
-  `/Users/massimomarcellin/...` — vérifier si ce fichier est dans le
+  `/Users/<user>/...` — vérifier si ce fichier est dans le
   `.gitignore` (sinon, le retirer du suivi et l'ignorer ; voir §4.1).
 
 ### 6.3 `.env.example` — `GITHUB_MIRROR_REPO`
@@ -370,7 +370,7 @@ confirmer par gitleaks) rendent l'historique privé publiable tel quel,
 modulo les commits de cleanup eux-mêmes.
 
 **Mais attention** : les noms `wwwatch`, `maintainer`,
-`massimo.png` apparaissent **dans l'historique** (commits PLAN_5 à 9).
+`author.png` apparaissent **dans l'historique** (commits PLAN_5 à 9).
 Si on push l'historique brut, ils restent visibles dans `git log -p`
 même après le scrub du HEAD. Trois lectures possibles :
 
@@ -403,7 +403,7 @@ cd wwwatch-oss
 cat > /tmp/replacements.txt <<'EOF'
 wwwatch==>wwwatch
 wwwatch==>wwwatch
-marcellin.massimo==>maintainer
+maintainer==>maintainer
 maintainer==>maintainer
 EOF
 git filter-repo --replace-text /tmp/replacements.txt
@@ -425,7 +425,7 @@ buggué).
 
 - [ ] Vérifier les auteurs commits actuels : `git log
   --format='%an <%ae>' | sort -u`. Si `wwwatch
-  <noreply@wwwatch.dev>` apparaît, le réécrire via
+  <maintainer>` apparaît, le réécrire via
   `git filter-repo --mailmap` ou
   `--name-callback`/`--email-callback`. Cible : `wwwatch
   <noreply@wwwatch.dev>` (ou similaire).
@@ -486,7 +486,7 @@ Actions humaines restantes :
   (metadata + byline), `app/about/page.tsx` (drop personSchema call),
   `lib/jsonld.ts` (drop AUTHOR_*, personSchema, switch NewsArticle
   author to Organization).
-- Supprimer `public/massimo.png`.
+- Supprimer `public/author.png`.
 - Remplacer `maintainer` par `maintainer` dans les 3 commentaires
   TODO/FUTURE.
 - Éditer `.env.example` (`GITHUB_MIRROR_REPO=org/wwwatch-journal`).
@@ -557,7 +557,7 @@ Actions humaines restantes :
 | Licence | MIT (`wwwatch contributors`, 2026) |
 | Auteur / byline / photo / email perso | **Tout retirer.** Auteur JSON-LD = NewsMediaOrganization "wwwatch" |
 | Page `/author/wwwatch` | Supprimer |
-| `public/massimo.png` | Supprimer |
+| `public/author.png` | Supprimer |
 | Commentaires `(maintainer, ...)` | Remplacer par `(maintainer, ...)` |
 | Stratégie git | Option A2 — `git filter-repo --replace-text` sur clone dédié |
 | Plans internes | Déplacer sous `docs/plans/`, scrub appliqué |

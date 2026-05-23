@@ -1,12 +1,20 @@
 # wwwatch
 
 Avant toute action significative, lis :
-- `PLAN_10.md` — Cleanup repo avant publication open source (actif)
+- `docs/plans/10-open-source-cleanup.md` — plan actif
 - `CONVENTIONS.md` — règles de développement
 
-`PLAN.md`, `PLAN_2.md`, `PLAN_3.md`, `PLAN_4.md`, `PLAN_5.md`, `PLAN_6.md`, `PLAN_7.md`, `PLAN_8.md`, `PLAN_9.md` sont terminés (complétés et déployés). Ne plus les lire sauf pour référence historique. `PLAN_5_PROMPT.md` est archivé.
-
-Note : PLAN_10 prévoit le déplacement de tous les `PLAN_*.md` sous `docs/plans/` (§4.3, Phase 3). Mettre à jour les chemins ci-dessus une fois cette phase exécutée.
+Plans terminés (référence historique uniquement) :
+- `docs/plans/01-mvp-build.md`
+- `docs/plans/02-mvp-extended.md`
+- `docs/plans/03-daily-pipeline.md`
+- `docs/plans/04-editorial-title-fix.md`
+- `docs/plans/05-editorial-selection.md`
+- `docs/plans/05a-writer-prompt.md` (archivé)
+- `docs/plans/06-posthog.md`
+- `docs/plans/07-seo-foundation.md`
+- `docs/plans/08-github-mirror.md`
+- `docs/plans/09-weekly-intro.md`
 
 Ces fichiers sont la source de vérité. En cas de conflit,
 CONVENTIONS.md gagne.
