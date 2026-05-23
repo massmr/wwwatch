@@ -8,12 +8,12 @@ import styles from './page.module.scss';
 export const metadata: Metadata = {
   title: 'About wwwatch · the daily AI brief for builders',
   description:
-    'Why wwwatch exists, who builds it, and how the pipeline works. A daily journal of what moved in AI, written from the source, reviewed by a human, no hype.',
+    'Why wwwatch exists and how the pipeline works. A daily journal of what moved in AI, written from the source, reviewed by a human, no hype.',
   alternates: { canonical: `${SITE_URL}/about` },
   openGraph: {
     title: 'About wwwatch · the daily AI brief for builders',
     description:
-      'Why wwwatch exists, who builds it, and how the pipeline works. A daily journal of what moved in AI, written from the source, reviewed by a human, no hype.',
+      'Why wwwatch exists and how the pipeline works. A daily journal of what moved in AI, written from the source, reviewed by a human, no hype.',
     url: `${SITE_URL}/about`,
   },
 };
