@@ -6,9 +6,7 @@
 
 import { SITE_URL } from './site-url';
 
-const AUTHOR_URL = `${SITE_URL}/author/wwwatch`;
 const ORG_LOGO_URL = `${SITE_URL}/logo.png`;      // 1200×600 — public/logo.png
-const AUTHOR_PHOTO_URL = `${SITE_URL}/massimo.png`; // 500×500 — public/massimo.png
 
 // ── Serialisation ─────────────────────────────────────────────────────────────
 
@@ -44,9 +42,9 @@ export function newsArticleSchema(a: NewsArticleInput): object {
     datePublished: `${a.datePublished}T00:00:00+00:00`,
     // dateModified omitted — no real re-edit; a fake timestamp misleads Google.
     author: {
-      '@type': 'Person',
+      '@type': 'NewsMediaOrganization',
       name: 'wwwatch',
-      url: AUTHOR_URL,
+      url: SITE_URL,
     },
     publisher: {
       '@type': 'NewsMediaOrganization',
@@ -113,24 +111,6 @@ export function newsMediaOrgSchema(): object {
       url: ORG_LOGO_URL,
       width: 1200,
       height: 600,
-    },
-    // sameAs: add social profile URLs here when available.
-  };
-}
-
-/** Person schema for the author page. */
-export function personSchema(): object {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'Person',
-    name: 'wwwatch',
-    url: AUTHOR_URL,
-    image: { '@type': 'ImageObject', url: AUTHOR_PHOTO_URL, width: 500, height: 500 },
-    // sameAs: ['https://github.com/maintainer', ...] — add social profiles.
-    worksFor: {
-      '@type': 'NewsMediaOrganization',
-      name: 'wwwatch',
-      url: SITE_URL,
     },
   };
 }

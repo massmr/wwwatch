@@ -23,7 +23,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${article.title} · wwwatch`,
     description: article.summary,
-    authors: [{ name: 'wwwatch', url: `${SITE_URL}/author/wwwatch` }],
     alternates: { canonical },
     robots: { 'max-image-preview': 'large' },
     openGraph: {
@@ -32,7 +31,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: 'article',
       url: canonical,
       publishedTime: `${article.day}T00:00:00+00:00`,
-      authors: ['wwwatch'],
       section: article.category,
       images: [{ url: '/favicon.png', width: 500, height: 500 }],
     },
@@ -85,12 +83,6 @@ export default async function ArticlePage({ params }: Props) {
           <p className={styles.category}>{article.category}</p>
           <h1 className={styles.title}>{article.title}</h1>
           <p className={styles.summary}>{article.summary}</p>
-          <p className={styles.byline}>
-            By{' '}
-            <Link href="/author/wwwatch" className={styles['byline-link']}>
-              wwwatch
-            </Link>
-          </p>
         </div>
 
         {/* bodyHtml is sanitized by lib/markdown.ts — safe for dangerouslySetInnerHTML.

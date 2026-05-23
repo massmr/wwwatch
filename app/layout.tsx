@@ -73,7 +73,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/today" className={styles['footer-link']}>Today</Link>
               <Link href="/journal" className={styles['footer-link']}>Journal</Link>
               <Link href="/about" className={styles['footer-link']}>About</Link>
-              <Link href="/author/wwwatch" className={styles['footer-link']}>wwwatch</Link>
             </div>
             <p className={styles['footer-copy']}>
               Built by builders, for builders. No ads, no clickbait, no sponsored picks in the feed.

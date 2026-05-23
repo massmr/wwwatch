@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { jsonLdString, newsMediaOrgSchema, personSchema } from '@/lib/jsonld';
+import { jsonLdString, newsMediaOrgSchema } from '@/lib/jsonld';
 import { SITE_URL } from '@/lib/site-url';
 
 import styles from './page.module.scss';
@@ -30,7 +30,6 @@ export default function AboutPage() {
   return (
     <div className={styles.page}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(newsMediaOrgSchema()) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(personSchema()) }} />
 
       <div className={styles.container}>
         <h1 className={styles.title}>About wwwatch</h1>
