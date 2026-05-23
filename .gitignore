@@ -9,3 +9,7 @@ out/
 .vercel
 .turbo
 tsconfig.tsbuildinfo
+
+# Claude Code internal artifacts
+memory/
+.claude/settings.local.json
