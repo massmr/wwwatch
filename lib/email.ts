@@ -77,7 +77,10 @@ export async function sendWelcomeEmail(to: string): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY missing');
 
-  const from = process.env.RESEND_FROM_WELCOME ?? 'hello@wwwatch.dev';
+  const fromEmail = process.env.RESEND_FROM_WELCOME ?? 'hello@wwwatch.dev';
+  // Display name for the From header: Gmail and most clients show this
+  // instead of deriving from the local-part. Resend passes it through verbatim.
+  const from = `Massimo wwwatch <${fromEmail}>`;
   const resend = new Resend(apiKey);
 
   const markdown = buildWelcomeMarkdown(buildUnsubscribeUrl(to));
@@ -99,14 +102,31 @@ function buildNewsletterMarkdown(
   bodyMarkdown: string,
   unsubscribeUrl: string,
   subject: string,
+  dateRange: string,
   intro?: string,
 ): string {
+  // Editorial byline header: avatar + "Retrospective {dateRange}" + signature.
+  // Uses emailmd's markdown image syntax with markdown-it-attrs — emailmd
+  // converts these to <mj-image> with width and border-radius. Raw HTML <img>
+  // is stripped by MJML, so do NOT switch back to it.
+  // See node_modules/emailmd/dist/index.js → renderImageSegment.
+  const bylineHeader = [
+    `![Massimo Marcellin](${SITE_URL}/massimo.png){width=64 border-radius=32px}`,
+    '',
+    `**Retrospective ${dateRange}**  `,
+    'Massimo Marcellin',
+  ].join('\n');
+
   const parts = [
     '---',
     `preheader: "${subject}"`,
     '---',
     '',
     '**wwwatch**',
+    '',
+    '---',
+    '',
+    bylineHeader,
     '',
     '---',
     '',
@@ -134,19 +154,22 @@ export async function sendBriefToList(
   emails: string[],
   markdown: string,
   subject: string,
+  dateRange: string,
   intro?: string,
 ): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY missing');
 
-  const from = process.env.RESEND_FROM_EMAIL ?? 'brief@wwwatch.dev';
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'massimo@wwwatch.dev';
+  // Display name for the From header (see sendWelcomeEmail above).
+  const from = `Massimo wwwatch <${fromEmail}>`;
   const resend = new Resend(apiKey);
   let sent = 0;
   let failed = 0;
 
   for (const to of emails) {
     try {
-      const fullMarkdown = buildNewsletterMarkdown(markdown, buildUnsubscribeUrl(to), subject, intro);
+      const fullMarkdown = buildNewsletterMarkdown(markdown, buildUnsubscribeUrl(to), subject, dateRange, intro);
       const { html, text } = await render(fullMarkdown, { theme: WWWATCH_THEME });
 
       const { error } = await resend.emails.send({ from, to, subject, html, text });

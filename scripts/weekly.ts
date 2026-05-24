@@ -165,7 +165,7 @@ async function main(): Promise<void> {
 
   // ─── 3. Generate editorial intro ─────────────────────────────────────────
   const dateRange = dateRangeLabel(TODAY);
-  const subject = `wwwatch: Week of ${dateRange}`;
+  const subject = 'The hottest AI news for builders this week';
   console.log(`[weekly] subject: "${subject}"`);
 
   const introResult = await generateWeeklyIntro(dateRange, top);
@@ -206,7 +206,7 @@ async function main(): Promise<void> {
     console.log(`[weekly] sending to ${subscribers.length} subscriber(s)...`);
   }
 
-  const { sent, failed } = await sendBriefToList(subscribers, markdown, subject, intro);
+  const { sent, failed } = await sendBriefToList(subscribers, markdown, subject, dateRange, intro);
   console.log(`[weekly] sent=${sent} failed=${failed}`);
 
   // ─── 5. Log to briefs table (skipped in TEST_EMAIL mode) ─────────────────
