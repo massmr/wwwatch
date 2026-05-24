@@ -98,6 +98,18 @@ export async function sendWelcomeEmail(to: string): Promise<void> {
 
 // ── EMAIL 2: Weekly brief ─────────────────────────────────────────────────────
 
+/**
+ * Preheader text shown next to the subject in Gmail/Apple Mail inbox previews.
+ * Strips newlines, escapes embedded double quotes (YAML-frontmatter safe),
+ * and truncates to ~140 chars so the preview isn't cut mid-thought.
+ */
+function buildPreheader(intro: string | undefined, fallback: string): string {
+  const raw = intro?.trim() || fallback;
+  const flat = raw.replace(/\s+/g, ' ');
+  const trimmed = flat.length > 140 ? flat.slice(0, 137).trimEnd() + '...' : flat;
+  return trimmed.replace(/"/g, '\\"');
+}
+
 function buildNewsletterMarkdown(
   bodyMarkdown: string,
   unsubscribeUrl: string,
@@ -105,21 +117,31 @@ function buildNewsletterMarkdown(
   dateRange: string,
   intro?: string,
 ): string {
-  // Editorial byline header: avatar + "Retrospective {dateRange}" + signature.
-  // Uses emailmd's markdown image syntax with markdown-it-attrs — emailmd
-  // converts these to <mj-image> with width and border-radius. Raw HTML <img>
-  // is stripped by MJML, so do NOT switch back to it.
-  // See node_modules/emailmd/dist/index.js → renderImageSegment.
+  // Editorial byline header: avatar on the left, name + retro date on the right.
+  //
+  // Two-cell <table> inside an mj-text segment — the bulletproof email layout
+  // for horizontal arrangement (float-based layouts misalign in Outlook and
+  // some mobile clients). emailmd passes raw HTML through mj-text verbatim.
+  // valign="top" + table-cell padding keeps the text aligned to the top of
+  // the avatar.
   const bylineHeader = [
-    `![Massimo Marcellin](${SITE_URL}/massimo.png){width=64 border-radius=32px}`,
-    '',
-    `**Retrospective ${dateRange}**  `,
-    'Massimo Marcellin',
+    '<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">',
+    '<tr>',
+    `<td valign="top" width="48"><img src="${SITE_URL}/massimo.png" alt="Massimo Marcellin" width="48" height="48" style="display:block;border-radius:50%;"></td>`,
+    '<td valign="top" style="padding-left:12px;font-size:14px;line-height:1.4;">',
+    '<strong>Massimo Marcellin</strong><br>',
+    `Retro ${dateRange}`,
+    '</td>',
+    '</tr>',
+    '</table>',
   ].join('\n');
 
   const parts = [
     '---',
-    `preheader: "${subject}"`,
+    // Preheader = inbox preview text. Use the LLM intro if available so Gmail
+    // doesn't echo the subject twice; fall back to the subject only when the
+    // intro generation failed (e.g. ANTHROPIC_API_KEY missing).
+    `preheader: "${buildPreheader(intro, subject)}"`,
     '---',
     '',
     '**wwwatch**',
